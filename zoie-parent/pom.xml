@@ -136,9 +136,9 @@
                 <version>3.0.2</version>
             </dependency>
             <dependency>
-                <groupId>it.unimi.dsi</groupId>
+                <groupId>fastutil</groupId>
                 <artifactId>fastutil</artifactId>
-                <version>6.4.3</version>
+                <version>5.0.5</version>
             </dependency>
             <dependency>
                 <groupId>junit</groupId>
