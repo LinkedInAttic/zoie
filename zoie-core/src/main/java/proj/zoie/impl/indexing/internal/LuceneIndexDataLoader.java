@@ -27,12 +27,16 @@ import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.log4j.Logger;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Similarity;
@@ -54,79 +58,191 @@ public abstract class LuceneIndexDataLoader<R extends IndexReader> implements Da
 	protected final Similarity _similarity;
 	protected final SearchIndexManager<R> _idxMgr;
 	protected final Comparator<String> _versionComparator;
-	private Filter _purgeFilter;
-
+	private final ScheduledExecutorService _executor;
+  private final Filter _purgeFilter;
+  protected Object _optimizeMonitor = new Object();
   private final Queue<IndexingEventListener> _lsnrList;
 
-	protected LuceneIndexDataLoader(Analyzer analyzer, Similarity similarity,SearchIndexManager<R> idxMgr,Comparator<String> versionComparator,Queue<IndexingEventListener> lsnrList) {
+  private final int _numDeletionsBeforeOptimize;
+
+	protected LuceneIndexDataLoader(Analyzer analyzer,
+                                  Similarity similarity,
+                                  SearchIndexManager<R> idxMgr,
+                                  Comparator<String> versionComparator,
+                                  Queue<IndexingEventListener> lsnrList,
+                                  Filter purgeFilter,
+                                  ScheduledExecutorService executor,
+                                  int numDeletionsBeforeOptimize,
+                                  long purgePeriod) {
 		_analyzer = analyzer;
 		_similarity = similarity;
 		_idxMgr=idxMgr;
 		_versionComparator = versionComparator;
-		_purgeFilter = null;
+		_purgeFilter = purgeFilter;
 		_lsnrList = lsnrList;
+    _numDeletionsBeforeOptimize = numDeletionsBeforeOptimize;
+    _executor = executor;
+
+    if(_executor != null && numDeletionsBeforeOptimize > 0 && purgePeriod > 0) {
+      _executor.scheduleAtFixedRate(new Runnable() {
+        @Override
+        public void run() {
+          try {
+            int numDocsPurged = purgeDocuments();
+            getSearchIndex().commitDeletes();
+            int numDeletions = getNumDeletions();
+            if(numDeletions + numDocsPurged > _numDeletionsBeforeOptimize) {
+              try {
+                optimize(1);
+              } catch (IOException e) {
+                log.error("Could not optimize search index", e);
+              }
+            }
+          } catch (Throwable th) {
+            log.error("Error during purge job!!!", th);
+          }
+        }
+      }, purgePeriod, purgePeriod, TimeUnit.MILLISECONDS);
+    }
 	}
 	
-	public void setPurgeFilter(Filter purgeFilter){
-		_purgeFilter = purgeFilter;
-	}
-
 	protected abstract BaseSearchIndex<R> getSearchIndex();
 	
-    protected abstract void propagateDeletes(LongSet delDocs) throws IOException;
-    protected abstract void commitPropagatedDeletes() throws IOException;
-    
-    private final void purgeDocuments(){
-    	if (_purgeFilter!=null){
-    		BaseSearchIndex<R> idx = getSearchIndex();
-    		IndexReader writeReader = null;
-    		log.info("purging docs started...");
-    		int count = 0;
-    		long start = System.currentTimeMillis();
+  protected abstract void propagateDeletes(LongSet delDocs) throws IOException;
+  protected abstract void commitPropagatedDeletes() throws IOException;
+
+  protected final int getNumDeletions() {
+    BaseSearchIndex<R> idx = getSearchIndex();
+    ZoieIndexReader<R> reader = null;
+    try {
+      if(idx != null) {
+        synchronized (idx) {
+          reader = idx.openIndexReader();
+          if (reader != null) {
+            reader.incZoieRef();
+            return reader.numDeletedDocs();
+          }
+        }
+      }
+      return 0;
+    } catch (IOException e) {
+      log.error("Error opening reader to check num deleted docs");
+      return 0;
+    } finally {
+      if(reader != null) {
+        reader.decZoieRef();
+      }
+    }
+  }
+
+  protected final int purgeDocuments() {
+    synchronized (_optimizeMonitor) {
+      if (_purgeFilter != null) {
+        BaseSearchIndex<R> idx = getSearchIndex();
+        IndexReader writeReader = null;
+
+        log.info("purging docs started...");
+        int count = 0;
+        long start = System.currentTimeMillis();
 
         ZoieIndexReader<R> reader = null;
-    		try{
-          synchronized(idx)
-          {
+        try {
+          synchronized (idx) {
+            idx.refresh();
             reader = idx.openIndexReader();
             if (reader != null)
               reader.incZoieRef();
           }
 
-    		  writeReader = idx.openIndexReaderForDelete();
+          writeReader = idx.openIndexReaderForDelete();
 
-    			DocIdSetIterator iter = _purgeFilter.getDocIdSet(reader).iterator();
-    			
-    			int doc;
-    			while((doc = iter.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS){
-    				count++;
-    				writeReader.deleteDocument(doc);
-    			}
-    		}
-    		catch(Throwable th){
-    			log.error("problem creating purge filter: "+th.getMessage(),th);
-    		}
-    		finally{
-          if (reader != null)
+          DocIdSetIterator iter = _purgeFilter.getDocIdSet(reader).iterator();
+
+          int doc;
+          while ((doc = iter.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+            count++;
+            writeReader.deleteDocument(doc);
+          }
+        } catch (Throwable th) {
+          log.error("problem creating purge filter: " + th.getMessage(), th);
+        } finally {
+          if (reader != null) {
             reader.decZoieRef();
-    			if (writeReader!=null){
-    				try{
-    				  writeReader.close();
-    				}
-    				catch(IOException ioe){
-    					ZoieHealth.setFatal();
-    					log.error(ioe.getMessage(),ioe);
-    				}
-    			}
-    		}
-    		
-    		long end = System.currentTimeMillis();
-    		log.info("purging docs completed in "+(end-start)+"ms");
-    		log.info("total docs purged: " +count);
-    	}
-    }
+          }
+          if (writeReader != null) {
+            try {
+              writeReader.close();
+            } catch (IOException ioe) {
+              ZoieHealth.setFatal();
+              log.error(ioe.getMessage(), ioe);
+            }
+          }
+        }
 
-	/**
+        long end = System.currentTimeMillis();
+        log.info("purging docs completed in " + (end - start) + "ms");
+        log.info("total docs purged: " + count);
+        return count;
+      }
+      return 0;
+    }
+  }
+
+  public void optimize(int numSegs) throws IOException
+  {
+    long t0 = System.currentTimeMillis();
+    if (numSegs<=1) numSegs = 1;
+    log.info("optmizing, numSegs: "+numSegs+" ...");
+
+    // we should optimize
+    synchronized(_optimizeMonitor)
+    {
+      BaseSearchIndex<R> idx=getSearchIndex();
+      IndexWriter writer=null;
+      try
+      {
+        writer=idx.openIndexWriter(_analyzer, _similarity);
+        writer.forceMerge(numSegs, true);
+        writer.commit();
+      }
+      finally
+      {
+        if (writer!=null)
+        {
+          idx.closeIndexWriter();
+        }
+      }
+      _idxMgr.refreshDiskReader();
+    }
+    log.info("index optimized in " + (System.currentTimeMillis() - t0) +"ms");
+  }
+
+  public void expungeDeletes() throws IOException
+  {
+    log.info("expunging deletes...");
+    synchronized(_optimizeMonitor)
+    {
+      BaseSearchIndex<R> idx=getSearchIndex();
+      IndexWriter writer=null;
+      try
+      {
+        writer=idx.openIndexWriter(_analyzer, _similarity);
+        writer.expungeDeletes(true);
+      }
+      finally
+      {
+        if (writer!=null)
+        {
+          idx.closeIndexWriter();
+        }
+      }
+      _idxMgr.refreshDiskReader();
+    }
+    log.info("deletes expunged");
+  }
+
+
+  /**
 	 * @Precondition incoming events sorted by version number
 	 * <br>every event in the events collection must be non-null
 	 * 

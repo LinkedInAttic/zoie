@@ -7,6 +7,8 @@ import java.util.regex.Pattern;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.search.DefaultSimilarity;
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Similarity;
 import org.apache.lucene.util.Version;
 
@@ -45,6 +47,10 @@ public class ZoieConfig
    */
   public static final Comparator<String> DEFAULT_VERSION_COMPARATOR = new DefaultVersionComparator();
 
+  public static final int DEFAULT_NUM_DELETIONS_BEFORE_OPTIMIZE = 0;
+
+  public static final long DEFAULT_PURGE_PERIOD = 0;
+
   DocIDMapperFactory docidMapperFactory = null;
   Comparator<String> versionComparator= null;
   Analyzer analyzer = null;
@@ -57,6 +63,9 @@ public class ZoieConfig
   ReaderCacheFactory readercachefactory = null;
   RAMIndexFactory<?> ramIndexFactory = null;
   boolean skipBadRecord = false;
+  Filter purgeFilter = null;
+  int numDeletionsBeforeOptimize = DEFAULT_NUM_DELETIONS_BEFORE_OPTIMIZE;
+  long purgePeriod = DEFAULT_PURGE_PERIOD;
 
   /**
    * Default constructor. Set the size of batch and batch delay to default value
@@ -235,5 +244,29 @@ public class ZoieConfig
     {
       return (compare(s1, s2) == 0);
     }
+  }
+
+  public Filter getPurgeFilter() {
+    return purgeFilter;
+  }
+
+  public void setPurgeFilter(Filter purgeFilter) {
+    this.purgeFilter = purgeFilter;
+  }
+
+  public int getNumDeletionsBeforeOptimize() {
+    return numDeletionsBeforeOptimize;
+  }
+
+  public void setNumDeletionsBeforeOptimize(int numDeletionsBeforeOptimize) {
+    this.numDeletionsBeforeOptimize = numDeletionsBeforeOptimize;
+  }
+
+  public long getPurgePeriod() {
+    return purgePeriod;
+  }
+
+  public void setPurgePeriod(long purgePeriod) {
+    this.purgePeriod = purgePeriod;
   }
 }

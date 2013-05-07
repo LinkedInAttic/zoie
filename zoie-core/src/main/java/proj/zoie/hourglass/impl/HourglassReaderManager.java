@@ -11,19 +11,17 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.SimpleFSDirectory;
 
-import proj.zoie.api.DirectoryManager;
-import proj.zoie.api.DocIDMapper;
-import proj.zoie.api.ZoieException;
-import proj.zoie.api.ZoieIndexReader;
-import proj.zoie.api.ZoieMultiReader;
+import proj.zoie.api.*;
 import proj.zoie.api.impl.util.FileUtil;
 import proj.zoie.api.indexing.IndexReaderDecorator;
 import proj.zoie.impl.indexing.ZoieSystem;
@@ -36,16 +34,70 @@ public class HourglassReaderManager<R extends IndexReader, D>
   private final IndexReaderDecorator<R> _decorator;
   private volatile Box<R, D> box;
   private volatile boolean isShutdown = false;
-  private final Thread maintenanceThread;
   private final ExecutorService retireThreadPool = Executors.newCachedThreadPool();
   private final HourglassListener<R, D> listener;
   private final boolean _appendOnly;
+  private final HourglassMaintenance hourglassMaintenance;
+  private final ScheduledThreadPoolExecutor executor;
+
+  private class HourglassMaintenance implements Runnable {
+    @Override
+    public void run() {
+      synchronized (this) {
+        int trimThreshold = hg._scheduler.getTrimThreshold();
+        List<ZoieIndexReader<R>> archives = new LinkedList<ZoieIndexReader<R>>(box._archives);
+        List<ZoieIndexReader<R>> add = new LinkedList<ZoieIndexReader<R>>();
+        List<ZoieSystem<R, D>> archiveZoies = new LinkedList<ZoieSystem<R, D>>(box._archiveZoies);
+        List<ZoieSystem<R, D>> addZoies = new LinkedList<ZoieSystem<R, D>>();
+        try
+        {
+          hg._shutdownLock.readLock().lock();
+          if (isShutdown)
+          {
+            log.info("Already shut down.");
+            return;
+          }
+          if (_appendOnly)
+          {
+            if (archives.size() > trimThreshold)
+            {
+              log.info("to maintain");
+            } else
+            {
+              return;
+            }
+            trim(archives);
+            // swap the archive with consolidated one
+            swapArchives(archives, add);
+          }
+          else
+          {
+            if (archiveZoies.size() > trimThreshold)
+            {
+              log.info("to maintain");
+            } else
+            {
+              return;
+            }
+            trimZoie(archiveZoies);
+            // swap the archive with consolidated one
+            swapArchiveZoies(archiveZoies, addZoies);
+          }
+        } finally
+        {
+          hg._shutdownLock.readLock().unlock();
+        }
+      }
+    }
+  };
+
   public HourglassReaderManager(final Hourglass<R, D> hourglass,
                                 HourglassDirectoryManagerFactory dirMgrFactory,
                                 IndexReaderDecorator<R> decorator,
                                 List<ZoieIndexReader<R>> initArchives,
                                 List<ZoieSystem<R, D>> initArchiveZoies,
-                                List<HourglassListener> hourglassListeners)
+                                List<HourglassListener> hourglassListeners,
+                                final ScheduledThreadPoolExecutor executor)
   {
     hg = hourglass;
     _dirMgrFactory = dirMgrFactory;
@@ -56,63 +108,9 @@ public class HourglassReaderManager<R extends IndexReader, D>
     List<ZoieSystem<R, D>> emptyList = Collections.emptyList();
     
     box = new Box<R, D>(initArchives, initArchiveZoies, emptyList, emptyList, _decorator);
-    
-    maintenanceThread = new Thread(new Runnable(){
-      final int trimThreshold = hourglass._scheduler.getTrimThreshold();
-
-      @Override
-      public void run()
-      {
-        while(true)
-        {
-          try
-          {
-        	synchronized(this){
-              this.wait(60000);
-        	}
-          } catch (InterruptedException e)
-          {
-            log.warn(e);
-          }
-          List<ZoieIndexReader<R>> archives = new LinkedList<ZoieIndexReader<R>>(box._archives);
-          List<ZoieIndexReader<R>> add = new LinkedList<ZoieIndexReader<R>>();
-          List<ZoieSystem<R, D>> archiveZoies = new LinkedList<ZoieSystem<R, D>>(box._archiveZoies);
-          List<ZoieSystem<R, D>> addZoies = new LinkedList<ZoieSystem<R, D>>();
-          try
-          {
-            hourglass._shutdownLock.readLock().lock();
-            if (isShutdown)
-            {
-              log.info("Already shut down. Quiting maintenance thread.");
-              break;
-            }
-            if (_appendOnly)
-            {
-              if (archives.size() > trimThreshold)
-              { 
-                log.info("to maintain");
-              } else continue;
-              trim(archives);
-              // swap the archive with consolidated one
-              swapArchives(archives, add);
-            }
-            else
-            {
-              if (archiveZoies.size() > trimThreshold)
-              { 
-                log.info("to maintain");
-              } else continue;
-              trimZoie(archiveZoies);
-              // swap the archive with consolidated one
-              swapArchiveZoies(archiveZoies, addZoies);
-            }
-          } finally
-          {
-            hourglass._shutdownLock.readLock().unlock();
-          }
-        }
-      }},"HourglassReaderManager Zoie Maintenanace Thread");
-    maintenanceThread.start();
+    this.hourglassMaintenance = new HourglassMaintenance();
+    this.executor = executor;
+    executor.schedule(hourglassMaintenance, 60000, TimeUnit.MILLISECONDS);
   }
 
   /**
@@ -351,6 +349,7 @@ public class HourglassReaderManager<R extends IndexReader, D>
     }
     return newzoie;
   }
+
   /**
    * @param zoie
    * @param reader the IndexReader opened on the index the give zoie had written to.
@@ -373,18 +372,15 @@ public class HourglassReaderManager<R extends IndexReader, D>
     Box<R, D> newbox = new Box<R, D>(archives, archiveZoies, retiring, actives, _decorator);
     box = newbox;
   }
+
   private synchronized void preshutdown()
   {
     log.info("shutting down thread pool.");
     isShutdown = true;
-    synchronized(maintenanceThread){
-      maintenanceThread.notifyAll();
-    }
-    try {
-		maintenanceThread.join(10000);
-	} catch (InterruptedException e) {
-		log.info("Maintenance thread interrpted");
-	}
+
+    hourglassMaintenance.run();
+    executor.remove(hourglassMaintenance);
+
     retireThreadPool.shutdown();
   }
   public void shutdown()

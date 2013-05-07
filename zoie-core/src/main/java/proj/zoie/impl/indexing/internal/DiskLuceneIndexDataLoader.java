@@ -24,11 +24,13 @@ import java.nio.channels.WritableByteChannel;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.Queue;
+import java.util.concurrent.ScheduledExecutorService;
 
 import org.apache.log4j.Logger;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Similarity;
 
 import proj.zoie.api.ZoieException;
@@ -44,11 +46,19 @@ public class DiskLuceneIndexDataLoader<R extends IndexReader> extends LuceneInde
 
 	private long _lastTimeOptimized;
 	private static final Logger log = Logger.getLogger(DiskLuceneIndexDataLoader.class);
-	private Object _optimizeMonitor;
 	private volatile OptimizeScheduler _optScheduler;
 	
-	public DiskLuceneIndexDataLoader(Analyzer analyzer, Similarity similarity,SearchIndexManager<R> idxMgr,Comparator<String> comparator,Queue<IndexingEventListener> lsnrList) {
-		super(analyzer, similarity, idxMgr,comparator,lsnrList);
+	public DiskLuceneIndexDataLoader(Analyzer analyzer,
+                                   Similarity similarity,
+                                   SearchIndexManager<R> idxMgr,
+                                   Comparator<String> comparator,
+                                   Queue<IndexingEventListener> lsnrList,
+                                   Filter purgeFilter,
+                                   ScheduledExecutorService executor,
+                                   int numDeletionsBeforeOptimize,
+                                   long purgePeriod) {
+		super(analyzer, similarity, idxMgr,comparator,lsnrList, purgeFilter, executor, numDeletionsBeforeOptimize,
+        purgePeriod);
 		_lastTimeOptimized=System.currentTimeMillis();
 		_optimizeMonitor = new Object();
 	}
@@ -168,61 +178,7 @@ public class DiskLuceneIndexDataLoader<R extends IndexReader> extends LuceneInde
         }
       }
     }
-  
-	
-	
-	public void expungeDeletes() throws IOException
-	{
-		log.info("expunging deletes...");
-		synchronized(_optimizeMonitor)
-		{
-		  BaseSearchIndex<R> idx=getSearchIndex();
-		  IndexWriter writer=null;  
-		  try
-		  {
-		    writer=idx.openIndexWriter(_analyzer, _similarity);
-		    writer.expungeDeletes(true);
-		  }
-		  finally
-		  {
-		    if (writer!=null)
-		    {
-		      idx.closeIndexWriter();
-		    }
-		  }
-		  _idxMgr.refreshDiskReader();
-		}
-		log.info("deletes expunged");
-	}
-	
-	public void optimize(int numSegs) throws IOException
-	{
-	  long t0 = System.currentTimeMillis();
-		if (numSegs<=1) numSegs = 1;
-		log.info("optmizing, numSegs: "+numSegs+" ...");
-		
-		// we should optimize
-		synchronized(_optimizeMonitor)
-		{
-		  BaseSearchIndex<R> idx=getSearchIndex();
-		  IndexWriter writer=null;  
-		  try
-		  {
-		    writer=idx.openIndexWriter(_analyzer, _similarity);
-		    writer.optimize(numSegs);
-		  }
-		  finally
-		  {
-		    if (writer!=null)
-		    {
-		      idx.closeIndexWriter();
-		    }
-		  }
-		  _idxMgr.refreshDiskReader();
-		}
-		log.info("index optimized in " + (System.currentTimeMillis() - t0) +"ms");
-	}
-	
+
 	public long getLastTimeOptimized()
 	{
 		return _lastTimeOptimized;
