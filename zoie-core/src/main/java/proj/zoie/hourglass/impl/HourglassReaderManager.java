@@ -40,7 +40,7 @@ public class HourglassReaderManager<R extends IndexReader, D>
   private final HourglassMaintenance hourglassMaintenance;
   private final ScheduledThreadPoolExecutor executor;
 
-  private class HourglassMaintenance implements Runnable {
+  public class HourglassMaintenance implements Runnable {
     @Override
     public void run() {
       synchronized (this) {

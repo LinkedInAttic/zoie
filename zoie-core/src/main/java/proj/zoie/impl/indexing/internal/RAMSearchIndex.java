@@ -238,7 +238,7 @@ public class RAMSearchIndex<R extends IndexReader> extends BaseSearchIndex<R>
   }
 
   @Override
-  public void refresh() throws IOException
+  public void refresh(boolean forceRefresh) throws IOException
   {
     synchronized (this)
     {

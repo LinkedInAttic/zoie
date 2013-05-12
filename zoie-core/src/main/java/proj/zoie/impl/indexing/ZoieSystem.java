@@ -661,12 +661,8 @@ extends AsyncDataConsumer<D> implements Zoie<R, D>
     {
       _shutdownLock.writeLock().unlock();
     }
-    OptimizeScheduler scheduler = _diskLoader.getOptimizeScheduler();
-    if (scheduler != null)
-    {
-      log.info("shutting down zoie's OptimizeScheduler ...");
-      scheduler.shutdown();
-    }
+    _diskLoader.close();
+
     log.info("shutting down zoie...");
     try
     {

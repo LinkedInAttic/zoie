@@ -58,12 +58,12 @@ public abstract class LuceneIndexDataLoader<R extends IndexReader> implements Da
 	protected final Similarity _similarity;
 	protected final SearchIndexManager<R> _idxMgr;
 	protected final Comparator<String> _versionComparator;
-	private final ScheduledExecutorService _executor;
-  private final Filter _purgeFilter;
+	protected final ScheduledExecutorService _executor;
+  protected final Filter _purgeFilter;
   protected Object _optimizeMonitor = new Object();
   private final Queue<IndexingEventListener> _lsnrList;
 
-  private final int _numDeletionsBeforeOptimize;
+  protected final int _numDeletionsBeforeOptimize;
 
 	protected LuceneIndexDataLoader(Analyzer analyzer,
                                   Similarity similarity,
@@ -82,28 +82,6 @@ public abstract class LuceneIndexDataLoader<R extends IndexReader> implements Da
 		_lsnrList = lsnrList;
     _numDeletionsBeforeOptimize = numDeletionsBeforeOptimize;
     _executor = executor;
-
-    if(_executor != null && numDeletionsBeforeOptimize > 0 && purgePeriod > 0) {
-      _executor.scheduleAtFixedRate(new Runnable() {
-        @Override
-        public void run() {
-          try {
-            int numDocsPurged = purgeDocuments();
-            getSearchIndex().commitDeletes();
-            int numDeletions = getNumDeletions();
-            if(numDeletions + numDocsPurged > _numDeletionsBeforeOptimize) {
-              try {
-                optimize(1);
-              } catch (IOException e) {
-                log.error("Could not optimize search index", e);
-              }
-            }
-          } catch (Throwable th) {
-            log.error("Error during purge job!!!", th);
-          }
-        }
-      }, purgePeriod, purgePeriod, TimeUnit.MILLISECONDS);
-    }
 	}
 	
 	protected abstract BaseSearchIndex<R> getSearchIndex();
@@ -148,7 +126,7 @@ public abstract class LuceneIndexDataLoader<R extends IndexReader> implements Da
         ZoieIndexReader<R> reader = null;
         try {
           synchronized (idx) {
-            idx.refresh();
+            idx.refresh(false);
             reader = idx.openIndexReader();
             if (reader != null)
               reader.incZoieRef();
@@ -163,6 +141,7 @@ public abstract class LuceneIndexDataLoader<R extends IndexReader> implements Da
             count++;
             writeReader.deleteDocument(doc);
           }
+
         } catch (Throwable th) {
           log.error("problem creating purge filter: " + th.getMessage(), th);
         } finally {
@@ -332,7 +311,7 @@ public abstract class LuceneIndexDataLoader<R extends IndexReader> implements Da
       propagateDeletes(delSet);
 			synchronized(_idxMgr)
 			{
-         idx.refresh();
+         idx.refresh(false);
          commitPropagatedDeletes();
 			}
 		} catch (IOException ioe) {
@@ -368,7 +347,7 @@ public abstract class LuceneIndexDataLoader<R extends IndexReader> implements Da
 //      duplicate clearDeletes, delDoc may change for realtime delete after loadFromIndex()
 //        idx.clearDeletes(); // clear old deletes as deletes are written to the lucene index
         // hao: update the disk idx reader
-        idx.refresh(); // load the index reader
+        idx.refresh(false); // load the index reader
         purgeDocuments();
         idx.markDeletes(ramIndex.getDelDocs()); // inherit deletes
         idx.commitDeletes();
@@ -410,4 +389,6 @@ public abstract class LuceneIndexDataLoader<R extends IndexReader> implements Da
 	public Comparator<String> getVersionComparator() {
     return _versionComparator;
   }
+
+  public abstract void close();
 }

@@ -25,6 +25,8 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.Queue;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.log4j.Logger;
 import org.apache.lucene.analysis.Analyzer;
@@ -46,8 +48,10 @@ public class DiskLuceneIndexDataLoader<R extends IndexReader> extends LuceneInde
 
 	private long _lastTimeOptimized;
 	private static final Logger log = Logger.getLogger(DiskLuceneIndexDataLoader.class);
-	private volatile OptimizeScheduler _optScheduler;
-	
+  private final ScheduledFuture<?> _scheduledPurge;
+
+  private volatile OptimizeScheduler _optScheduler;
+
 	public DiskLuceneIndexDataLoader(Analyzer analyzer,
                                    Similarity similarity,
                                    SearchIndexManager<R> idxMgr,
@@ -55,15 +59,48 @@ public class DiskLuceneIndexDataLoader<R extends IndexReader> extends LuceneInde
                                    Queue<IndexingEventListener> lsnrList,
                                    Filter purgeFilter,
                                    ScheduledExecutorService executor,
-                                   int numDeletionsBeforeOptimize,
+                                   final int numDeletionsBeforeOptimize,
                                    long purgePeriod) {
 		super(analyzer, similarity, idxMgr,comparator,lsnrList, purgeFilter, executor, numDeletionsBeforeOptimize,
         purgePeriod);
 		_lastTimeOptimized=System.currentTimeMillis();
 		_optimizeMonitor = new Object();
-	}
-	
-	public void setOptimizeScheduler(OptimizeScheduler scheduler){
+
+    if(executor != null && numDeletionsBeforeOptimize > 0 && purgePeriod > 0) {
+      purgeFunction();
+
+      _scheduledPurge = executor.scheduleAtFixedRate(new Runnable() {
+        @Override
+        public void run() {
+          purgeFunction();
+        }
+      }, purgePeriod, purgePeriod, TimeUnit.MILLISECONDS);
+    } else {
+      _scheduledPurge = null;
+    }
+  }
+
+  private synchronized void purgeFunction() {
+    try {
+      int numDocsPurged = purgeDocuments();
+      getSearchIndex().commitDeletes();
+      int numDeletions = getNumDeletions();
+      if (numDeletions + numDocsPurged > _numDeletionsBeforeOptimize) {
+        try {
+          optimize(1);
+          BaseSearchIndex<R> searchIndex = getSearchIndex();
+          searchIndex.refresh(true);
+
+        } catch (IOException e) {
+          log.error("Could not optimize search index", e);
+        }
+      }
+    } catch (Throwable th) {
+      log.error("Error during purge job!!!", th);
+    }
+  }
+
+  public void setOptimizeScheduler(OptimizeScheduler scheduler){
 		_optScheduler = scheduler;
 	}
 	
@@ -221,4 +258,18 @@ public class DiskLuceneIndexDataLoader<R extends IndexReader> extends LuceneInde
 	    }
 	  }
 	}
+
+  @Override
+  public void close() {
+    if (_optScheduler != null)
+    {
+      log.info("shutting down zoie's OptimizeScheduler ...");
+      _optScheduler.shutdown();
+    }
+
+    if(_scheduledPurge != null)
+    {
+      _scheduledPurge.cancel(false);
+    }
+  }
 }
