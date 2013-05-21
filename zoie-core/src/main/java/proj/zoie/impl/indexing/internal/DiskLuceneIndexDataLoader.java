@@ -67,6 +67,7 @@ public class DiskLuceneIndexDataLoader<R extends IndexReader> extends LuceneInde
 		_optimizeMonitor = new Object();
 
     if(executor != null && numDeletionsBeforeOptimize > 0 && purgePeriod > 0) {
+      log.info("Beginning disk purge on boot");
       purgeFunction();
 
       _scheduledPurge = executor.scheduleAtFixedRate(new Runnable() {
@@ -76,6 +77,7 @@ public class DiskLuceneIndexDataLoader<R extends IndexReader> extends LuceneInde
         }
       }, purgePeriod, purgePeriod, TimeUnit.MILLISECONDS);
     } else {
+      log.info("No need to purge. Executor is null, or we don't have numDeletionsBeforeOptimize or the purgePeriod set");
       _scheduledPurge = null;
     }
   }
