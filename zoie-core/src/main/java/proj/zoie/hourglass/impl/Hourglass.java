@@ -104,11 +104,25 @@ public class Hourglass<R extends IndexReader, D> implements Zoie<R, D>
   public Hourglass(HourglassDirectoryManagerFactory dirMgrFactory,
                    ZoieIndexableInterpreter<D> interpreter,
                    IndexReaderDecorator<R> readerDecorator,
+                   ZoieConfig zoieConfig,
+                   List<HourglassListener> hourglassListeners)
+  {
+    this(dirMgrFactory, interpreter, readerDecorator, zoieConfig, hourglassListeners, new ScheduledThreadPoolExecutor(1));
+  }
+
+
+  public Hourglass(HourglassDirectoryManagerFactory dirMgrFactory,
+                   ZoieIndexableInterpreter<D> interpreter,
+                   IndexReaderDecorator<R> readerDecorator,
                    ZoieConfig zoieConfig) {
     this(dirMgrFactory, interpreter, readerDecorator, zoieConfig, Collections.EMPTY_LIST, new ScheduledThreadPoolExecutor(1));
   }
 
-  public Hourglass(HourglassDirectoryManagerFactory dirMgrFactory, ZoieIndexableInterpreter<D> interpreter, IndexReaderDecorator<R> readerDecorator,ZoieConfig zoieConfig, HourglassListener hourglassListener) {
+  public Hourglass(HourglassDirectoryManagerFactory dirMgrFactory,
+                   ZoieIndexableInterpreter<D> interpreter,
+                   IndexReaderDecorator<R> readerDecorator,
+                   ZoieConfig zoieConfig,
+                   HourglassListener hourglassListener) {
     this(dirMgrFactory,
         interpreter,
         readerDecorator,
