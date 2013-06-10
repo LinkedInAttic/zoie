@@ -16,3 +16,9 @@ cscope.*
 /bin
 /.project
 .gradle
+out
+*.iml
+*.ipr
+*.iws
+*.log
+
