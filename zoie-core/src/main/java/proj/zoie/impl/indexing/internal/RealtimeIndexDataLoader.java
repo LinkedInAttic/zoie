@@ -45,14 +45,17 @@ import proj.zoie.impl.indexing.IndexUpdatedEvent;
 public class RealtimeIndexDataLoader<R extends IndexReader, D> extends BatchedIndexDataLoader<R,D>
 {
   private int _currentBatchSize;
-  private final DataConsumer<ZoieIndexable>  _ramConsumer;
+  private final int _maxSizeInBytes;
+  private final RAMLuceneIndexDataLoader<R>  _ramConsumer;
   private final DiskLuceneIndexDataLoader<R> _luceneDataLoader;
   private final Analyzer                     _analyzer;
   private final Similarity                   _similarity;
   
   private static Logger log = Logger.getLogger(RealtimeIndexDataLoader.class);
   
-  public RealtimeIndexDataLoader(DiskLuceneIndexDataLoader<R> dataLoader, int batchSize,int maxBatchSize,long delay,
+  public RealtimeIndexDataLoader(DiskLuceneIndexDataLoader<R> dataLoader,
+                                 int batchSize, int maxBatchSize, long delay,
+                                 int maxSizeInBytes,
                                  Analyzer analyzer,
                                  Similarity similarity,
                                  SearchIndexManager<R> idxMgr,
@@ -61,6 +64,7 @@ public class RealtimeIndexDataLoader<R extends IndexReader, D> extends BatchedIn
                                  Comparator<String> comparator)
   {
     super((DataConsumer<ZoieIndexable>)dataLoader, batchSize, maxBatchSize, delay, idxMgr, interpreter, lsnrList);
+    _maxSizeInBytes = maxSizeInBytes;
     _analyzer = analyzer;
     _similarity = similarity;
     _currentBatchSize = 0;
@@ -107,8 +111,9 @@ public class RealtimeIndexDataLoader<R extends IndexReader, D> extends BatchedIn
         }
         _currentBatchSize += size;
         _eventCount += size;
-        
-        while (_currentBatchSize > _maxBatchSize)
+
+        while (_currentBatchSize > _maxBatchSize ||
+            _ramConsumer.getSearchIndex().sizeInBytes() > _maxSizeInBytes)
         {
           // check if load manager thread is alive
           if(_loadMgrThread == null || !_loadMgrThread.isAlive())
@@ -116,6 +121,9 @@ public class RealtimeIndexDataLoader<R extends IndexReader, D> extends BatchedIn
             ZoieHealth.setFatal();
             throw new ZoieException("fatal: indexing thread loader manager has stopped");
           }
+
+          if (_ramConsumer.getSearchIndex().sizeInBytes() > _maxSizeInBytes)
+            _flush = true;
           
           this.notifyAll(); // wake up load manager thread      
           

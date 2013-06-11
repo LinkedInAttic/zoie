@@ -23,8 +23,8 @@ import org.apache.lucene.index.IndexReader;
 import proj.zoie.api.indexing.ZoieIndexableInterpreter;
 
 /**
- * @deprecated use {@link ZoieSystem#buildDefaultInstance(File, ZoieIndexableInterpreter, int, long, boolean)}
- * @param <V>
+ * @deprecated use {@link ZoieSystem#buildDefaultInstance(java.io.File, proj.zoie.api.indexing.ZoieIndexableInterpreter, ZoieConfig)}
+ * @param <D>
  */
 public class SimpleZoieSystem<D> extends ZoieSystem<IndexReader,D> {
 

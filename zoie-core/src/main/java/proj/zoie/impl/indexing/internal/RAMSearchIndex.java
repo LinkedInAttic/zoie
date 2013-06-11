@@ -33,6 +33,7 @@ import org.apache.lucene.index.IndexWriterConfig.OpenMode;
 import org.apache.lucene.index.SerialMergeScheduler;
 import org.apache.lucene.search.Similarity;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.Version;
 
 import proj.zoie.api.DocIDMapper;
@@ -47,7 +48,7 @@ import proj.zoie.api.indexing.IndexReaderDecorator;
 public class RAMSearchIndex<R extends IndexReader> extends BaseSearchIndex<R>
 {
   private volatile String _version;
-  private final Directory _directory;
+  private final RAMDirectory _directory;
   private final File _backingdir;
   private final IndexReaderDecorator<R> _decorator;
 
@@ -57,7 +58,7 @@ public class RAMSearchIndex<R extends IndexReader> extends BaseSearchIndex<R>
 
   public static final Logger log = Logger.getLogger(RAMSearchIndex.class);
 
-  public RAMSearchIndex(String version, IndexReaderDecorator<R> decorator, SearchIndexManager<R> idxMgr, Directory ramIdxDir,
+  public RAMSearchIndex(String version, IndexReaderDecorator<R> decorator, SearchIndexManager<R> idxMgr, RAMDirectory ramIdxDir,
       File backingdir)
   {
     super(idxMgr, true);
@@ -82,15 +83,9 @@ public class RAMSearchIndex<R extends IndexReader> extends BaseSearchIndex<R>
     }
     if (_directory != null)
     {
-      try
-      {
-        _directory.close();
-        if (_backingdir != null)
-          FileUtil.rmDir(_backingdir);
-      } catch (IOException e)
-      {
-        log.error(e);
-      }
+      _directory.close();
+      if (_backingdir != null)
+        FileUtil.rmDir(_backingdir);
     }
   }
 
@@ -132,6 +127,11 @@ public class RAMSearchIndex<R extends IndexReader> extends BaseSearchIndex<R>
         reader.decZoieRef();
     }
     return 0;
+  }
+
+  public long sizeInBytes()
+  {
+    return _directory == null ? -1 : _directory.sizeInBytes();
   }
 
   @Override
