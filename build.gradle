@@ -11,24 +11,11 @@ apply from: environmentScript
 
 project.ext.externalDependency = [
   'luceneCore': 'org.apache.lucene:lucene-core:3.5.0',
-  'luceneHighlighter': 'org.apache.lucene:lucene-highlighter:3.5.0',
-  'solrCore': 'org.apache.solr:solr-core:3.5.0',
-  'solrSolrj': 'org.apache.solr:solr-solrj:3.5.0',
-  'metricsCore':'com.yammer.metrics:metrics-core:2.0.0-RC0',
-  'commonsConfiguration':'commons-configuration:commons-configuration:1.6',
-  'jetty':'org.mortbay.jetty:jetty:6.1.26',
-  'jettyUtil':'org.mortbay.jetty:jetty-util:6.1.26',
-  'json':'org.json:json:20080701',
   'jms': 'javax.jms:jms:1.1',
-  'springCode': 'org.springframework:spring-core:3.0.7.RELEASE',
-  'springWeb': 'org.springframework:spring-web:3.0.7.RELEASE',
-  'springWebmvc': 'org.springframework:spring-webmvc:3.0.7.RELEASE', 
   'fastutil': 'fastutil:fastutil:5.1.5',
-  'servletApi':'javax.servlet:servlet-api:2.5',
   'log4j': 'log4j:log4j:1.2.16',
-  'dwr': 'org.directwebremoting:dwr:3.0.M1',
 
-  'mockitoAll': 'org.mockito:mockito-all:1.8.1',
+  'mockitoAll': 'org.mockito:mockito-all:1.8.4',
   'junit':'junit:junit:4.7'
 ];
 
