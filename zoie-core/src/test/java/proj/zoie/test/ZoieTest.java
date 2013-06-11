@@ -270,7 +270,7 @@ public class ZoieTest extends ZoieTestCaseBase {
 		}
 	}
 
-	private static class EvenIDPurgeFilter extends Filter{
+  private static class EvenIDPurgeFilter extends Filter{
 
     @Override
     public DocIdSet getDocIdSet(IndexReader reader) throws IOException {

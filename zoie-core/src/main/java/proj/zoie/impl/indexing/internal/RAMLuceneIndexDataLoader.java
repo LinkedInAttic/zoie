@@ -36,7 +36,7 @@ public class RAMLuceneIndexDataLoader<R extends IndexReader> extends LuceneIndex
 	}
 
 	@Override
-	protected BaseSearchIndex<R> getSearchIndex() {
+	protected RAMSearchIndex<R> getSearchIndex() {
 		return _idxMgr.getCurrentWritableMemoryIndex();
 	}
 
