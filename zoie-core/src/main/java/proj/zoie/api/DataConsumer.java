@@ -32,6 +32,7 @@ public interface DataConsumer<D> {
 		private String _version;
     // This will override ZoieIndexable.isDeleted()
 		private boolean _delete = false;
+    private int _weight = 0;
 				
 		/**
 		 * Create a data event instance
@@ -56,6 +57,19 @@ public interface DataConsumer<D> {
 			_version=version;
       _delete = del;
 		}
+
+    /**
+     * Create a data event instance
+     * @param data Data for the event
+     * @param version ZoieVersion of the event
+     * @param weight weight of data, typically size in bytes
+     */
+    public DataEvent(D data, String version, int weight)
+    {
+      _data=data;
+      _version=version;
+      _weight=weight;
+    }
 
 		/**
 		 * Gets the version.
@@ -83,7 +97,17 @@ public interface DataConsumer<D> {
 		{
 			return _delete;
 		}
-	}
+
+    /**
+     * Weight of this data event, typically size in bytes.
+     * Used for memory control. See {@link proj.zoie.impl.indexing.AsyncDataConsumer}
+     * @return data weight
+     */
+    public int getWeight()
+    {
+      return _weight;
+    }
+  }
 	
 	public static final class MarkerDataEvent<D> extends DataEvent<D>{
 

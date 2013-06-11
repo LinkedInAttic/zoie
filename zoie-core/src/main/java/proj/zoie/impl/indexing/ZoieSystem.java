@@ -149,7 +149,7 @@ extends AsyncDataConsumer<D> implements Zoie<R, D>
         .getDocidMapperFactory(), zoieConfig.getAnalyzer(), zoieConfig
         .getSimilarity(), zoieConfig.getBatchSize(),
         zoieConfig.getBatchDelay(), zoieConfig.isRtIndexing(), zoieConfig
-        .getMaxBatchSize(), zoieConfig.getReadercachefactory(),
+        .getMaxBatchSize(), zoieConfig.getRamSizeInBytes(), zoieConfig.getMaxTotalWeight(), zoieConfig.getReadercachefactory(),
         (RAMIndexFactory<R>)zoieConfig.getRamIndexFactory(),zoieConfig.getVersionComparator(),
         zoieConfig.isSkipBadRecord());
     readercache.setFreshness(zoieConfig.getFreshness());
@@ -176,7 +176,7 @@ extends AsyncDataConsumer<D> implements Zoie<R, D>
         zoieConfig.getDocidMapperFactory(), zoieConfig.getAnalyzer(),
         zoieConfig.getSimilarity(), zoieConfig.getBatchSize(), zoieConfig
         .getBatchDelay(), zoieConfig.isRtIndexing(), zoieConfig
-        .getMaxBatchSize(), zoieConfig.getReadercachefactory(),
+        .getMaxBatchSize(), zoieConfig.getRamSizeInBytes(), zoieConfig.getMaxTotalWeight(), zoieConfig.getReadercachefactory(),
         (RAMIndexFactory<R>)zoieConfig.getRamIndexFactory(),zoieConfig.getVersionComparator(),
         zoieConfig.isSkipBadRecord());
     readercache.setFreshness(zoieConfig.getFreshness());
@@ -230,7 +230,7 @@ extends AsyncDataConsumer<D> implements Zoie<R, D>
    *          index reader decorator,optional. If not specified,
    *          {@link proj.zoie.impl.indexing.DefaultIndexReaderDecorator} is
    *          used.
-   * @param docIdMapperFactory
+   * @param docidMapperFactory
    *          custom docid mapper factory
    * @param analyzer
    *          Default analyzer, optional. If not specified,
@@ -309,7 +309,7 @@ extends AsyncDataConsumer<D> implements Zoie<R, D>
    *          index reader decorator,optional. If not specified,
    *          {@link proj.zoie.impl.indexing.DefaultIndexReaderDecorator} is
    *          used.
-   * @param docIdMapperFactory
+   * @param docidMapperFactory
    *          custom docid mapper factory
    * @param analyzer
    *          Default analyzer, optional. If not specified,
@@ -336,7 +336,9 @@ extends AsyncDataConsumer<D> implements Zoie<R, D>
       boolean rtIndexing, int maxBatchSize,
       Comparator<String> versionComparator,boolean skipBadRecord)
   {
-    this(dirMgr, interpreter, indexReaderDecorator, docidMapperFactory, analyzer, similarity, batchSize, batchDelay, rtIndexing, maxBatchSize, DefaultReaderCache.FACTORY, new DefaultRAMIndexFactory<R>(),versionComparator,skipBadRecord);
+    this(dirMgr, interpreter, indexReaderDecorator, docidMapperFactory, analyzer, similarity, batchSize, batchDelay, rtIndexing,
+         ZoieConfig.DEFAULT_RAM_SIZE_IN_BYTES, ZoieConfig.DEFAULT_MAX_TOTAL_WEIGHT,
+         maxBatchSize, DefaultReaderCache.FACTORY, new DefaultRAMIndexFactory<R>(),versionComparator,skipBadRecord);
   }
   /**
    * Creates a new ZoieSystem.
@@ -350,7 +352,7 @@ extends AsyncDataConsumer<D> implements Zoie<R, D>
    *          index reader decorator,optional. If not specified,
    *          {@link proj.zoie.impl.indexing.DefaultIndexReaderDecorator} is
    *          used.
-   * @param docIdMapperFactory
+   * @param docidMapperFactory
    *          custom docid mapper factory
    * @param analyzer
    *          Default analyzer, optional. If not specified,
@@ -368,7 +370,8 @@ extends AsyncDataConsumer<D> implements Zoie<R, D>
    *          Ensure real-time.
    * @param maxBatchSize
    *          maximum batch size
-   * @param ReaderCacheFactory
+   * @param maxRamSizeInBytes
+   *          maximum size to be allocated for memory segments
    */
   public ZoieSystem(DirectoryManager dirMgr,
       final ZoieIndexableInterpreter<D> interpreter,
@@ -376,6 +379,7 @@ extends AsyncDataConsumer<D> implements Zoie<R, D>
       DocIDMapperFactory docidMapperFactory, Analyzer analyzer,
       Similarity similarity, int batchSize, long batchDelay,
       boolean rtIndexing, int maxBatchSize,
+      int maxRamSizeInBytes, int maxTotalWeight,
       ReaderCacheFactory readercachefactory, RAMIndexFactory<R> ramIndexFactory,
       Comparator<String> versionComparator,
       boolean skipBadRecords)
@@ -457,6 +461,7 @@ extends AsyncDataConsumer<D> implements Zoie<R, D>
     _lsnrList = new ConcurrentLinkedQueue<IndexingEventListener>();
 
     super.setBatchSize(Math.max(1, batchSize)); // realtime memory batch size
+    super.setMaxTotalWeight(maxTotalWeight);
     _diskLoader = new DiskLuceneIndexDataLoader<R>(_analyzer, _similarity,
         _searchIdxMgr,versionComparator,_lsnrList);
     _diskLoader.setOptimizeScheduler(new DefaultOptimizeScheduler(
@@ -467,7 +472,7 @@ extends AsyncDataConsumer<D> implements Zoie<R, D>
     if (_realtimeIndexing)
     {
       _rtdc = new RealtimeIndexDataLoader<R, D>(_diskLoader, batchSize, Math
-          .max(batchSize, maxBatchSize), batchDelay, _analyzer, _similarity,
+          .max(batchSize, maxBatchSize), batchDelay, maxRamSizeInBytes, _analyzer, _similarity,
           _searchIdxMgr, _interpreter, _lsnrList,versionComparator);
     } else
     {

@@ -39,7 +39,7 @@ import proj.zoie.api.ZoieHealth;
  * buffered events drop below this limit after some of them being sent to background
  * DataConsumer.
  * 
- * @param <V>
+ * @param <D>
  */
 public class AsyncDataConsumer<D> implements LifeCycleCotrolledDataConsumer<D> 
 {
@@ -58,6 +58,8 @@ public class AsyncDataConsumer<D> implements LifeCycleCotrolledDataConsumer<D>
    * DataConsumer.
    */
   private int _batchSize;
+  private int _maxTotalWeight;
+  private int _totalWeight;
 
   public AsyncDataConsumer(Comparator<String> versionComparator)
   {
@@ -137,7 +139,25 @@ public class AsyncDataConsumer<D> implements LifeCycleCotrolledDataConsumer<D>
       return _batchSize;
     }
   }
-  
+
+  /**
+   * @return maximum total weight of buffered data.
+   */
+  public int getMaxTotalWeight()
+  {
+    return _maxTotalWeight;
+  }
+
+  /**
+   * Sets maximum total weight of buffered data (typically size in bytes).
+   * If the limit is reached, the async consumer will block.
+   * @param maxTotalWeight
+   */
+  public void setMaxTotalWeight(int maxTotalWeight)
+  {
+    _maxTotalWeight = maxTotalWeight;
+  }
+
   /**
    * @return the number of unprocessed events in buffered already.
    */
@@ -233,7 +253,7 @@ public class AsyncDataConsumer<D> implements LifeCycleCotrolledDataConsumer<D>
     
     synchronized(this)
     {
-      while(_batch.size() >= _batchSize)
+      while(_batch.size() >= _batchSize || (_maxTotalWeight > 0 && _totalWeight >= _maxTotalWeight))
       {
         if(_consumerThread == null || !_consumerThread.isAlive() || _consumerThread._stop)
         {
@@ -253,6 +273,7 @@ public class AsyncDataConsumer<D> implements LifeCycleCotrolledDataConsumer<D>
       {
         _bufferedVersion = (_bufferedVersion == null) ? event.getVersion() : (_versionComparator.compare(_bufferedVersion, event.getVersion()) < 0 ? event.getVersion() : _bufferedVersion);
         _batch.add(event);
+        _totalWeight += event.getWeight();
       }
       if (log.isDebugEnabled())
       {
@@ -282,6 +303,10 @@ public class AsyncDataConsumer<D> implements LifeCycleCotrolledDataConsumer<D>
         }
       }
       version = _currentVersion == null ? _bufferedVersion : ((_versionComparator.compare(_currentVersion, _bufferedVersion) < 0) ? _bufferedVersion : _currentVersion);
+      for (DataEvent<D> event : _batch)
+      {
+        _totalWeight -= event.getWeight();
+      }
       currentBatch = _batch;
       _batch = new LinkedList<DataEvent<D>>();
       this.notifyAll(); // wake up the thread waiting in consume(...)
