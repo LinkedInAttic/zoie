@@ -825,6 +825,11 @@ public boolean alreadyShutdown()
     _diskLoader.importSnapshot(channel);
   }
 
+  public void optimize()
+  {
+    _rtdc.optimize();
+  }
+
   public ZoieSystemAdminMBean getAdminMBean()
   {
     return new MyZoieSystemAdmin();

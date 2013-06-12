@@ -126,50 +126,52 @@ public class DiskLuceneIndexDataLoader<R extends IndexReader> extends LuceneInde
 	@Override
     public void loadFromIndex(RAMSearchIndex<R> ramIndex) throws ZoieException
     {
-	  
-      synchronized(_optimizeMonitor)
+	    loadFromIndex(ramIndex, false);
+    }
+
+  public void loadFromIndex(RAMSearchIndex<R> ramIndex, boolean forcePartialExpunge) throws ZoieException
+  {
+    synchronized(_optimizeMonitor)
+    {
+      try
       {
+        _idxMgr.setDiskIndexerStatus(Status.Working);
+
+        OptimizeType optType = _optScheduler.getScheduledOptimizeType();
+        _idxMgr.setPartialExpunge(optType == OptimizeType.PARTIAL || forcePartialExpunge);
         try
         {
-          _idxMgr.setDiskIndexerStatus(Status.Working);
-          
-          OptimizeType optType = _optScheduler.getScheduledOptimizeType();
-          _idxMgr.setPartialExpunge(optType == OptimizeType.PARTIAL);
+          super.loadFromIndex(ramIndex);
+        }
+        finally
+        {
+          _optScheduler.finished();
+          _idxMgr.setPartialExpunge(false);
+        }
+
+        if(optType == OptimizeType.FULL)
+        {
           try
           {
-            super.loadFromIndex(ramIndex);
+            expungeDeletes();
+          }
+          catch(IOException ioe)
+          {
+            ZoieHealth.setFatal();
+            throw new ZoieException(ioe.getMessage(),ioe);
           }
           finally
           {
             _optScheduler.finished();
-            _idxMgr.setPartialExpunge(false);
           }
-          
-          if(optType == OptimizeType.FULL)
-          {
-            try
-            {
-              expungeDeletes();
-            }
-            catch(IOException ioe)
-            {
-              ZoieHealth.setFatal();
-              throw new ZoieException(ioe.getMessage(),ioe);
-            }
-            finally
-            {
-              _optScheduler.finished();
-            }
-          }
-        }
-        finally
-        {
-          _idxMgr.setDiskIndexerStatus(Status.Sleep);         
         }
       }
+      finally
+      {
+        _idxMgr.setDiskIndexerStatus(Status.Sleep);
+      }
     }
-  
-	
+  }
 	
 	public void expungeDeletes() throws IOException
 	{
