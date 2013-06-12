@@ -466,4 +466,8 @@ public class BatchedIndexDataLoader<R extends IndexReader,D> implements LifeCycl
 	{
 	  throw new UnsupportedOperationException();
 	}
+
+  public void optimize()
+  {
+  }
 }
