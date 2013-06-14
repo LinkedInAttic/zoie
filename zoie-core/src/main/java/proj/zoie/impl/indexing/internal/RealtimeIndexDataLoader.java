@@ -45,14 +45,17 @@ import proj.zoie.impl.indexing.IndexUpdatedEvent;
 public class RealtimeIndexDataLoader<R extends IndexReader, D> extends BatchedIndexDataLoader<R,D>
 {
   private int _currentBatchSize;
-  private final DataConsumer<ZoieIndexable>  _ramConsumer;
+  private final int _maxSizeInBytes;
+  private final RAMLuceneIndexDataLoader<R>  _ramConsumer;
   private final DiskLuceneIndexDataLoader<R> _luceneDataLoader;
   private final Analyzer                     _analyzer;
   private final Similarity                   _similarity;
   
   private static Logger log = Logger.getLogger(RealtimeIndexDataLoader.class);
   
-  public RealtimeIndexDataLoader(DiskLuceneIndexDataLoader<R> dataLoader, int batchSize,int maxBatchSize,long delay,
+  public RealtimeIndexDataLoader(DiskLuceneIndexDataLoader<R> dataLoader,
+                                 int batchSize, int maxBatchSize, long delay,
+                                 int maxSizeInBytes,
                                  Analyzer analyzer,
                                  Similarity similarity,
                                  SearchIndexManager<R> idxMgr,
@@ -61,6 +64,7 @@ public class RealtimeIndexDataLoader<R extends IndexReader, D> extends BatchedIn
                                  Comparator<String> comparator)
   {
     super((DataConsumer<ZoieIndexable>)dataLoader, batchSize, maxBatchSize, delay, idxMgr, interpreter, lsnrList);
+    _maxSizeInBytes = maxSizeInBytes;
     _analyzer = analyzer;
     _similarity = similarity;
     _currentBatchSize = 0;
@@ -107,8 +111,9 @@ public class RealtimeIndexDataLoader<R extends IndexReader, D> extends BatchedIn
         }
         _currentBatchSize += size;
         _eventCount += size;
-        
-        while (_currentBatchSize > _maxBatchSize)
+
+        while (_currentBatchSize > _maxBatchSize ||
+            _ramConsumer.getSearchIndex().sizeInBytes() > _maxSizeInBytes)
         {
           // check if load manager thread is alive
           if(_loadMgrThread == null || !_loadMgrThread.isAlive())
@@ -116,6 +121,9 @@ public class RealtimeIndexDataLoader<R extends IndexReader, D> extends BatchedIn
             ZoieHealth.setFatal();
             throw new ZoieException("fatal: indexing thread loader manager has stopped");
           }
+
+          if (_ramConsumer.getSearchIndex().sizeInBytes() > _maxSizeInBytes)
+            _flush = true;
           
           this.notifyAll(); // wake up load manager thread      
           
@@ -141,12 +149,23 @@ public class RealtimeIndexDataLoader<R extends IndexReader, D> extends BatchedIn
   @Override
   protected void processBatch()
   {
+    processBatch(false);
+  }
+
+  @Override
+  public void optimize()
+  {
+    processBatch(true);
+  }
+
+  protected void processBatch(boolean forceOptimize)
+  {
     RAMSearchIndex<R> readOnlyMemIndex = null;
     int eventCount = 0;
     synchronized (this) {
       long now = System.currentTimeMillis();
       long duration = now - _lastFlushTime;
-      while(_currentBatchSize < _batchSize && !_stop && !_flush && duration < _delay) {
+      while(_currentBatchSize < _batchSize && !_stop && !_flush && duration < _delay && !forceOptimize) {
         try
         {
           wait(_delay - duration);
@@ -161,7 +180,7 @@ public class RealtimeIndexDataLoader<R extends IndexReader, D> extends BatchedIn
       _flush = false;
       _lastFlushTime = now;
 
-      if (_currentBatchSize > 0)
+      if (_currentBatchSize > 0 || forceOptimize)
       {
         // change the status and get the read only memory index
         // this has to be done in the block synchronized on CopyingBatchIndexDataLoader
@@ -173,23 +192,22 @@ public class RealtimeIndexDataLoader<R extends IndexReader, D> extends BatchedIn
       notifyAll();
     }
 
-    if (eventCount > 0)
+    long t1=System.currentTimeMillis();
+    try
     {
-      long t1=System.currentTimeMillis();
-      try
-      {
-        if(readOnlyMemIndex != null){
-          _luceneDataLoader.loadFromIndex(readOnlyMemIndex);
-        }
+      if((eventCount > 0 || forceOptimize) && readOnlyMemIndex != null) {
+        _luceneDataLoader.loadFromIndex(readOnlyMemIndex, forceOptimize);
       }
-      catch (ZoieException e)
-      {
-        ZoieHealth.setFatal();
-        log.error(e.getMessage(),e);
-      }
-      finally
-      {
-        synchronized (this) {  
+    }
+    catch (ZoieException e)
+    {
+      ZoieHealth.setFatal();
+      log.error(e.getMessage(),e);
+    }
+    finally
+    {
+      if (eventCount > 0) {
+        synchronized (this) {
           long t2=System.currentTimeMillis();
           _eventCount -= eventCount;
           int segmentCount = -1;
@@ -198,7 +216,7 @@ public class RealtimeIndexDataLoader<R extends IndexReader, D> extends BatchedIn
           {
             segmentCount = _idxMgr.getDiskSegmentCount();
             segmentInfo = _idxMgr.getDiskSegmentInfo();
-            
+
             IndexUpdatedEvent evt = new IndexUpdatedEvent(eventCount,t1,t2,_eventCount);
             fireIndexingEvent(evt);
             fireNewVersionEvent(readOnlyMemIndex.getVersion());
@@ -212,13 +230,6 @@ public class RealtimeIndexDataLoader<R extends IndexReader, D> extends BatchedIn
           }
           notifyAll();
         }
-      }
-    }
-    else
-    {
-      if (log.isDebugEnabled())
-      {
-        log.debug("batch size is 0");
       }
     }
   }

@@ -171,52 +171,112 @@ public class DiskLuceneIndexDataLoader<R extends IndexReader> extends LuceneInde
 		  }
 		}
 	}
-	
-	@Override
-    public void loadFromIndex(RAMSearchIndex<R> ramIndex) throws ZoieException
+
+  @Override
+  public void loadFromIndex(RAMSearchIndex<R> ramIndex)
+      throws ZoieException
+  {
+    loadFromIndex(ramIndex, false);
+  }
+
+  public void loadFromIndex(RAMSearchIndex<R> ramIndex, boolean forcePartialExpunge)
+      throws ZoieException
+  {
+
+    synchronized (_optimizeMonitor)
     {
-	  
-      synchronized(_optimizeMonitor)
+      try
       {
+        _idxMgr.setDiskIndexerStatus(Status.Working);
+
+        OptimizeType optType = _optScheduler.getScheduledOptimizeType();
+        _idxMgr.setPartialExpunge(optType == OptimizeType.PARTIAL || forcePartialExpunge);
         try
         {
-          _idxMgr.setDiskIndexerStatus(Status.Working);
-          
-          OptimizeType optType = _optScheduler.getScheduledOptimizeType();
-          _idxMgr.setPartialExpunge(optType == OptimizeType.PARTIAL);
+          super.loadFromIndex(ramIndex);
+        }
+        finally
+        {
+          _optScheduler.finished();
+          _idxMgr.setPartialExpunge(false);
+        }
+
+        if (optType == OptimizeType.FULL)
+        {
           try
           {
-            super.loadFromIndex(ramIndex);
+            expungeDeletes();
+          }
+          catch (IOException ioe)
+          {
+            ZoieHealth.setFatal();
+            throw new ZoieException(ioe.getMessage(), ioe);
           }
           finally
           {
             _optScheduler.finished();
-            _idxMgr.setPartialExpunge(false);
           }
-          
-          if(optType == OptimizeType.FULL)
-          {
-            try
-            {
-              expungeDeletes();
-            }
-            catch(IOException ioe)
-            {
-              ZoieHealth.setFatal();
-              throw new ZoieException(ioe.getMessage(),ioe);
-            }
-            finally
-            {
-              _optScheduler.finished();
-            }
-          }
-        }
-        finally
-        {
-          _idxMgr.setDiskIndexerStatus(Status.Sleep);         
         }
       }
+      finally
+      {
+        _idxMgr.setDiskIndexerStatus(Status.Sleep);
+      }
     }
+  }
+
+  public void expungeDeletes() throws IOException
+	{
+		log.info("expunging deletes...");
+		synchronized(_optimizeMonitor)
+		{
+		  BaseSearchIndex<R> idx=getSearchIndex();
+		  IndexWriter writer=null;  
+		  try
+		  {
+		    writer=idx.openIndexWriter(_analyzer, _similarity);
+		    writer.expungeDeletes(true);
+		  }
+		  finally
+		  {
+		    if (writer!=null)
+		    {
+		      idx.closeIndexWriter();
+		    }
+		  }
+		  _idxMgr.refreshDiskReader();
+		}
+		log.info("deletes expunged");
+	}
+	
+	public void optimize(int numSegs) throws IOException
+	{
+	  long t0 = System.currentTimeMillis();
+		if (numSegs<=1) numSegs = 1;
+		log.info("optmizing, numSegs: "+numSegs+" ...");
+		
+		// we should optimize
+		synchronized(_optimizeMonitor)
+		{
+		  BaseSearchIndex<R> idx=getSearchIndex();
+		  IndexWriter writer=null;  
+		  try
+		  {
+		    writer=idx.openIndexWriter(_analyzer, _similarity);
+		    writer.optimize(numSegs);
+		  }
+		  finally
+		  {
+		    if (writer!=null)
+		    {
+		      idx.closeIndexWriter();
+		    }
+		  }
+		  _idxMgr.refreshDiskReader();
+		}
+		log.info("index optimized in " + (System.currentTimeMillis() - t0) +"ms");
+	}
+	
 
 	public long getLastTimeOptimized()
 	{

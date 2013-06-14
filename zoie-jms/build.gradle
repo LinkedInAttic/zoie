@@ -1,0 +1,15 @@
+apply plugin: 'java'
+
+configurations {
+  sourceGen {
+  }
+}
+
+dependencies {
+  compile project(':zoie-core')
+  compile externalDependency.jms
+  compile externalDependency.mockitoAll
+
+  testCompile externalDependency.junit
+}
+

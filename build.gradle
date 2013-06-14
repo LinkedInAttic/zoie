@@ -1,0 +1,23 @@
+project.ext.isDefaultEnvironment = !project.hasProperty('overrideBuildEnvironment')
+
+File getEnvironmentScript()
+{
+  final File env = file(isDefaultEnvironment ? 'defaultEnvironment.gradle' : project.overrideBuildEnvironment)
+  assert env.isFile() : "The environment script [$env] does not exists or is not a file."
+  return env
+}
+
+apply from: environmentScript
+
+project.ext.externalDependency = [
+  'luceneCore': 'org.apache.lucene:lucene-core:3.5.0',
+  'jms': 'javax.jms:jms:1.1',
+  'fastutil': 'fastutil:fastutil:5.1.5',
+  'log4j': 'log4j:log4j:1.2.16',
+
+  'mockitoAll': 'org.mockito:mockito-all:1.8.4',
+  'junit':'junit:junit:4.7'
+];
+
+subprojects {
+}

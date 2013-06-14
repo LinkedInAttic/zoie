@@ -39,7 +39,7 @@ public class RAMLuceneIndexDataLoader<R extends IndexReader> extends LuceneIndex
 	}
 
 	@Override
-	protected BaseSearchIndex<R> getSearchIndex() {
+	protected RAMSearchIndex<R> getSearchIndex() {
 		return _idxMgr.getCurrentWritableMemoryIndex();
 	}
 
@@ -74,4 +74,10 @@ public class RAMLuceneIndexDataLoader<R extends IndexReader> extends LuceneIndex
 	    diskIdx.commitDeletes();
 	  }
 	}
+
+  @Override
+  public void close()
+  {
+
+  }
 }

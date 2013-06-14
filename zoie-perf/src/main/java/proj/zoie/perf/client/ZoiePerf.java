@@ -50,10 +50,10 @@ import proj.zoie.store.ZoieStoreConsumer;
 import proj.zoie.store.ZoieStoreSerializer;
 
 import com.yammer.metrics.Metrics;
-import com.yammer.metrics.core.GaugeMetric;
-import com.yammer.metrics.core.MeterMetric;
+import com.yammer.metrics.core.Gauge;
+import com.yammer.metrics.core.Meter;
 import com.yammer.metrics.core.Metric;
-import com.yammer.metrics.core.TimerMetric;
+import com.yammer.metrics.core.Timer;
 import com.yammer.metrics.reporting.CsvReporter;
 
 public class ZoiePerf {
@@ -309,9 +309,9 @@ public class ZoiePerf {
 		boolean doSearchTest = conf.getBoolean("perf.test.search", true);
 		
 		
-		final TimerMetric searchTimer = Metrics.newTimer(ZoiePerf.class,
+		final Timer searchTimer = Metrics.newTimer(ZoiePerf.class,
 				"searchTimer", TimeUnit.NANOSECONDS, TimeUnit.SECONDS);
-		final MeterMetric errorMeter = Metrics.newMeter(ZoiePerf.class,
+		final Meter errorMeter = Metrics.newMeter(ZoiePerf.class,
 				"errorMeter", "error", TimeUnit.SECONDS);
 		
 		monitoredMetrics.put("searchTimer", searchTimer);
@@ -373,7 +373,7 @@ public class ZoiePerf {
 
 		Metric metric = null;
 		String name = "eventCount";
-		metric = Metrics.newGauge(ZoiePerf.class, name, new GaugeMetric<Long>() {
+		metric = Metrics.newGauge(ZoiePerf.class, name, new Gauge<Long>() {
 
 			@Override
 			public Long value() {
@@ -386,7 +386,7 @@ public class ZoiePerf {
 
 		name = "amountConsumed";
 		metric = Metrics.newGauge(ZoiePerf.class, name,
-				new GaugeMetric<Long>() {
+				new Gauge<Long>() {
 
 					@Override
 					public Long value() {
@@ -402,7 +402,7 @@ public class ZoiePerf {
 
 		name = "consumeRateCount";
 		metric = Metrics.newGauge(ZoiePerf.class, name,
-				new GaugeMetric<Long>() {
+				new Gauge<Long>() {
 					@Override
 					public Long value() {
 						long newTime = System.currentTimeMillis();
@@ -424,7 +424,7 @@ public class ZoiePerf {
 
 		name = "consumeRateMB";
 		metric = Metrics.newGauge(ZoiePerf.class, name,
-				new GaugeMetric<Long>() {
+				new Gauge<Long>() {
 					@Override
 					public Long value() {
 						long newTime = System.currentTimeMillis();
@@ -445,7 +445,7 @@ public class ZoiePerf {
 		
 		name = "indexLatency";
 		metric = Metrics.newGauge(ZoiePerf.class, name,
-				new GaugeMetric<Long>() {
+				new Gauge<Long>() {
 
 					@Override
 					public Long value() {
@@ -474,7 +474,7 @@ public class ZoiePerf {
 		
 		File csvOut = new File("csvout");
 		csvOut.mkdirs();
-		CsvReporter csvReporter = new CsvReporter(csvOut,Metrics.defaultRegistry());
+		CsvReporter csvReporter = new CsvReporter(Metrics.defaultRegistry(), csvOut);
 		//GangliaReporter csvReporter = new GangliaReporter(Metrics.defaultRegistry(),"localhost",8649,"zoie-perf");
 		
 		int updateInterval = conf.getInt("perf.update.intervalSec", 2);

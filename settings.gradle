@@ -1,0 +1,3 @@
+include "zoie-core"
+include "zoie-jms"
+

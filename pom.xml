@@ -25,24 +25,13 @@
   <parent>
     <groupId>com.linkedin.zoie</groupId>
     <artifactId>zoie-parent</artifactId>
-    <version>3.2.2-SNAPSHOT</version>
+    <version>3.3.1-SNAPSHOT</version>
     <relativePath>zoie-parent/pom.xml</relativePath>
   </parent>
 
   <artifactId>zoie-project</artifactId>
   <packaging>pom</packaging>
   <name>Zoie</name>
-  <url>http://senseidb.github.com/zoie</url>
-
-  <scm>
-    <connection>
-      scm:git://github.com/senseidb/zoie.git
-    </connection>
-    <developerConnection>
-      scm:git@github.com:senseidb/zoie.git
-    </developerConnection>
-    <url>https://github.com/senseidb/zoie</url>
-  </scm>
 
   <modules>
     <module>zoie-parent</module>

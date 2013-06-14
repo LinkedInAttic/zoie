@@ -43,6 +43,16 @@ public class ZoieConfig
   public static final int DEFAULT_MAX_BATCH_SIZE = 10000;
 
   /**
+   * Default maximum memory size in bytes for each of in-memory segment, there are two of those.
+   */
+  public static final int DEFAULT_RAM_SIZE_IN_BYTES = 50 * (2 << 20); // 50 MB
+
+  /**
+   * Default maximum total weight of {@link proj.zoie.api.DataConsumer.DataEvent} when buffering in {@link AsyncDataConsumer}.
+   */
+  public static final int DEFAULT_MAX_TOTAL_WEIGHT = 0; // do not use weight by default
+
+  /**
    * Default version comparator
    */
   public static final Comparator<String> DEFAULT_VERSION_COMPARATOR = new DefaultVersionComparator();
@@ -57,6 +67,8 @@ public class ZoieConfig
   Similarity similarity = null;
   int batchSize;
   long batchDelay;
+  int ramSizeInBytes;
+  int maxTotalWeight;
   boolean rtIndexing = true;
   int maxBatchSize;
   long _freshness = 10000;
@@ -87,6 +99,7 @@ public class ZoieConfig
     this.batchDelay = DEFAULT_SETTING_BATCHDELAY;
     this.rtIndexing = true;
     this.maxBatchSize = DEFAULT_MAX_BATCH_SIZE;
+    this.ramSizeInBytes = DEFAULT_RAM_SIZE_IN_BYTES;
     this.versionComparator = versionComparator;
   }
 
@@ -159,6 +172,26 @@ public class ZoieConfig
   public void setBatchDelay(long batchDelay)
   {
     this.batchDelay = batchDelay;
+  }
+
+  public int getRamSizeInBytes()
+  {
+    return ramSizeInBytes;
+  }
+
+  public void setRamSizeInBytes(int ramSizeInBytes)
+  {
+    this.ramSizeInBytes = ramSizeInBytes;
+  }
+
+  public int getMaxTotalWeight()
+  {
+    return maxTotalWeight;
+  }
+
+  public void setMaxTotalWeight(int maxTotalWeight)
+  {
+    this.maxTotalWeight = maxTotalWeight;
   }
 
   public boolean isRtIndexing()
