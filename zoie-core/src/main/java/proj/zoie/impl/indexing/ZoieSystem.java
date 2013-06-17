@@ -815,16 +815,25 @@ public boolean alreadyShutdown()
     }
   }
 
-  public void exportSnapshot(WritableByteChannel channel) throws IOException
+  public long exportSnapshot(WritableByteChannel channel) throws IOException
   {
-    _diskLoader.exportSnapshot(channel);
+    return exportSnapshot(channel, 0L);
   }
 
   public void importSnapshot(ReadableByteChannel channel) throws IOException
   {
-    _diskLoader.importSnapshot(channel);
+    importSnapshot(channel, 0L);
   }
 
+  public long exportSnapshot(WritableByteChannel channel, long maxBps) throws IOException
+  {
+    return _diskLoader.exportSnapshot(channel, maxBps);
+  }
+
+  public void importSnapshot(ReadableByteChannel channel, long maxBps) throws IOException
+  {
+    _diskLoader.importSnapshot(channel, maxBps);
+  }
   public void optimize()
   {
     _rtdc.optimize();

@@ -27,6 +27,9 @@ public class DefaultDirectoryManager implements DirectoryManager
 
   private File _location;
   private final DIRECTORY_MODE _mode;
+  
+  private final long DEFAULT_CHUNK_SIZE = 8192L;
+  
   public DefaultDirectoryManager(File location)
   {
     if (location==null) throw new IllegalArgumentException("null index directory.");
@@ -232,8 +235,13 @@ public class DefaultDirectoryManager implements DirectoryManager
   {
     return _location.exists();
   }
-  
+
   public boolean transferFromChannelToFile(ReadableByteChannel channel, String fileName) throws IOException
+  {
+    return transferFromChannelToFile(channel, fileName, 0L);
+  }
+
+  public boolean transferFromChannelToFile(ReadableByteChannel channel, String fileName, long maxBps) throws IOException
   {
     if(!_location.exists())
     {
@@ -253,10 +261,38 @@ public class DefaultDirectoryManager implements DirectoryManager
       raf = new RandomAccessFile(file, "rw");
       fc = raf.getChannel();
 
-      long position = 0;
+      long startTime = System.currentTimeMillis();
+      long position = 0L;
+      long nextMaxPosition = dataLen;
+      long lastPosition = 0;
       do
       {
-        position += fc.transferFrom(channel, position, dataLen - position);
+        if(maxBps > 0L) {
+          if(position > lastPosition + DEFAULT_CHUNK_SIZE) 
+          {
+            // at least wrote DEFAULT_CHUNK_SIZE of bytes, check bps
+            // and reset lastPositon
+            lastPosition = position;
+            long elapsed = System.currentTimeMillis() - startTime;
+            long wake = position * 1000L / maxBps;
+            if(wake > elapsed) 
+            {
+              try 
+              {
+                Thread.sleep(wake - elapsed);
+              }
+              catch (InterruptedException ie) 
+              {
+                //no need to do anything since it is not enforced
+              }
+            }
+          }
+
+          nextMaxPosition = position + DEFAULT_CHUNK_SIZE;
+          if(nextMaxPosition > dataLen)
+            nextMaxPosition = dataLen;
+        }
+        position += fc.transferFrom(channel, position, nextMaxPosition - position);
       } while (position < dataLen);
       return true;
     }
@@ -271,8 +307,12 @@ public class DefaultDirectoryManager implements DirectoryManager
       }
     }
   }
-  
+
   public long transferFromFileToChannel(String fileName, WritableByteChannel channel) throws IOException
+  {
+    return transferFromFileToChannel(fileName, channel, 0L);
+  }
+  public long transferFromFileToChannel(String fileName, WritableByteChannel channel, long maxBps) throws IOException
   {
     long amount = 0;
     File file = new File(_location, fileName);
@@ -286,10 +326,38 @@ public class DefaultDirectoryManager implements DirectoryManager
       log.info("transferFromFileToChannel for " + fileName +  " of " +  dataLen + " bytes");
       amount += ChannelUtil.writeLong(channel, dataLen);
 
-      long position = 0;
+      long startTime = System.currentTimeMillis();
+      long position = 0L;
+      long nextMaxPosition = dataLen;
+      long lastPosition = 0;
       do
       {
-        position += fc.transferTo(position, dataLen - position, channel);
+        if(maxBps > 0L) {
+          if(position > lastPosition + DEFAULT_CHUNK_SIZE) 
+          {
+            // at least wrote DEFAULT_CHUNK_SIZE of bytes, check bps
+            // and reset lastPositon
+            lastPosition = position;
+            long elapsed = System.currentTimeMillis() - startTime;
+            long wake = position * 1000L / maxBps;
+            if(wake > elapsed) 
+            {
+              try 
+              {
+                Thread.sleep(wake - elapsed);
+              }
+              catch (InterruptedException ie) 
+              {
+                //no need to do anything since it is not enforced
+              }
+            }
+          }
+
+          nextMaxPosition = position + DEFAULT_CHUNK_SIZE;
+          if(nextMaxPosition > dataLen)
+            nextMaxPosition = dataLen;
+        }
+        position += fc.transferTo(position, nextMaxPosition - position, channel);
       } while (position < dataLen);
       
       amount += position;

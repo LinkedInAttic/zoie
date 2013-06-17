@@ -286,6 +286,10 @@ public class DiskSearchIndex<R extends IndexReader> extends BaseSearchIndex<R>{
 
   public void importSnapshot(ReadableByteChannel channel) throws IOException
   {
-    DiskIndexSnapshot.readSnapshot(channel, _dirMgr);
+    importSnapshot(channel, 0L);
+  }
+  public void importSnapshot(ReadableByteChannel channel, long maxBps) throws IOException
+  {
+    DiskIndexSnapshot.readSnapshot(channel, _dirMgr, maxBps);
   }
 }

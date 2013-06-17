@@ -229,8 +229,11 @@ public class DiskLuceneIndexDataLoader<R extends IndexReader> extends LuceneInde
 	{
 		return _lastTimeOptimized;
 	}
-	
-	public long exportSnapshot(WritableByteChannel channel) throws IOException
+  public long exportSnapshot(WritableByteChannel channel) throws IOException
+  {
+    return exportSnapshot(channel, 0L);
+  }
+	public long exportSnapshot(WritableByteChannel channel, long maxBps) throws IOException
 	{
 	  DiskSearchIndex<R> idx = (DiskSearchIndex<R>)getSearchIndex();
 	  if(idx != null)
@@ -244,7 +247,7 @@ public class DiskLuceneIndexDataLoader<R extends IndexReader> extends LuceneInde
 	        snapshot = idx.getSnapshot();
 	      }
 	      
-	      return (snapshot != null ?  snapshot.writeTo(channel) : 0);
+	      return (snapshot != null ?  snapshot.writeTo(channel, maxBps) : 0);
 	    }
 	    finally
 	    {
@@ -254,7 +257,11 @@ public class DiskLuceneIndexDataLoader<R extends IndexReader> extends LuceneInde
 	  return 0;
 	}
 	
-	public void importSnapshot(ReadableByteChannel channel) throws IOException
+  public void importSnapshot(ReadableByteChannel channel) throws IOException
+  {
+    importSnapshot(channel, 0L);
+  }
+	public void importSnapshot(ReadableByteChannel channel, long maxBps) throws IOException
 	{
       DiskSearchIndex<R> idx = (DiskSearchIndex<R>)getSearchIndex();
       if(idx != null)
@@ -262,7 +269,7 @@ public class DiskLuceneIndexDataLoader<R extends IndexReader> extends LuceneInde
         synchronized(_optimizeMonitor) // prevent index updates while taking a snapshot
         {
 	      _idxMgr.purgeIndex();
-	      idx.importSnapshot(channel);
+	      idx.importSnapshot(channel, maxBps);
 	      _idxMgr.refreshDiskReader();
 	    }
 	  }

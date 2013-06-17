@@ -56,6 +56,10 @@ public class DiskIndexSnapshot
   
   public long writeTo(WritableByteChannel channel) throws IOException
   {
+    return writeTo(channel, 0L);
+  }
+  public long writeTo(WritableByteChannel channel, long maxBps) throws IOException
+  {
     // format:
     //   <format_version> <sig_len> <sig_data> { <idx_file_name_len> <idx_file_name> <idx_file_len> <idx_file_data> }...
     
@@ -78,12 +82,16 @@ public class DiskIndexSnapshot
     for(String fileName : fileNames)
     {
       amount += ChannelUtil.writeString(channel, fileName);
-      amount += _dirMgr.transferFromFileToChannel(fileName, channel);
+      amount += _dirMgr.transferFromFileToChannel(fileName, channel, maxBps);
     }
     return amount;
   }
-  
+
   public static void readSnapshot(ReadableByteChannel channel, DirectoryManager dirMgr) throws IOException
+  {
+    readSnapshot(channel, dirMgr, 0L);
+  }
+  public static void readSnapshot(ReadableByteChannel channel, DirectoryManager dirMgr, long maxBps) throws IOException
   {
     // format version
     int formatVersion = ChannelUtil.readInt(channel);
@@ -111,7 +119,7 @@ public class DiskIndexSnapshot
       {
         throw new IOException("bad snapshot file");
       }
-      if(!dirMgr.transferFromChannelToFile(channel, fileName))
+      if(!dirMgr.transferFromChannelToFile(channel, fileName, maxBps))
       {
         throw new IOException("bad snapshot file");
       }

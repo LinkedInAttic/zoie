@@ -1490,6 +1490,90 @@ public class ZoieTest extends ZoieTestCaseBase {
 		}
 	}
 
+	
+	//test correctness of bps, not the throattling
+	 @Test
+	  public void testExportImportBps() throws ZoieException, IOException {
+	    File idxDir = getIdxDir();
+	    final ZoieSystem<IndexReader, String> idxSystem = createZoie(
+	        idxDir, true, ZoieConfig.DEFAULT_VERSION_COMPARATOR);
+	    idxSystem.start();
+
+	    DirectoryManager dirMgr = new DefaultDirectoryManager(idxDir);
+
+	    String query = "zoie";
+	    QueryParser parser = new QueryParser(Version.LUCENE_34,
+	        "contents", idxSystem.getAnalyzer());
+	    Query q = null;
+	    try {
+	      q = parser.parse(query);
+	    } catch (ParseException e) {
+	      throw new ZoieException(e.getMessage(), e);
+	    }
+
+	    try {
+	      List<DataEvent<String>> list;
+
+	      list = new ArrayList<DataEvent<String>>(
+	          DataForTests.testdata.length);
+	      for (int i = 0; i < DataForTests.testdata.length; ++i) {
+	        list.add(new DataEvent<String>(
+	            DataForTests.testdata[i], ""+i));
+	      }
+	      idxSystem.consume(list);
+	      idxSystem.flushEvents(100000);
+
+	      assertEquals("index version mismatch after first flush",
+	          DataForTests.testdata.length - 1, DataForTests.testdata.length-1);
+
+	      int hits = countHits(idxSystem, q);
+
+	      RandomAccessFile exportFile;
+	      FileChannel channel;
+
+	      exportFile = new RandomAccessFile(new File(getTmpDir(),
+	          "zoie_export.dat"), "rw");
+	      channel = exportFile.getChannel();
+	      idxSystem.exportSnapshot(channel, 10);
+	      channel.close();
+	      exportFile.close();
+	      exportFile = null;
+	      channel = null;
+
+	      list = new ArrayList<DataEvent<String>>(
+	          DataForTests.testdata2.length);
+	      for (int i = 0; i < DataForTests.testdata2.length; ++i) {
+
+	        list.add(new DataEvent<String>(
+	            DataForTests.testdata.length + DataForTests.testdata2[i], ""+(DataForTests.testdata.length+i)));
+	      }
+	      idxSystem.consume(list);
+	      idxSystem.flushEvents(100000);
+	      String zvt = dirMgr.getVersion();
+	      assertEquals("index version mismatch after second flush",
+	          DataForTests.testdata.length + DataForTests.testdata2.length - 1,
+	          (long)Long.valueOf(zvt));
+	      assertEquals("should have no hits", 0, countHits(idxSystem, q));
+
+	      exportFile = new RandomAccessFile(new File(getTmpDir(),
+	          "zoie_export.dat"), "r");
+	      channel = exportFile.getChannel();
+	      idxSystem.importSnapshot(channel, 10);
+	      idxSystem.flushEvents(10000);
+	      channel.close();
+	      exportFile.close();
+
+	      assertEquals("count is wrong", hits, countHits(idxSystem, q));
+	    }
+
+	    catch (ZoieException e) {
+	      throw e;
+	    } finally {
+	      idxSystem.shutdown();
+	      deleteDirectory(idxDir);
+	    }
+	  }
+
 	@Test
 	public void testUIDDocIdSet() throws IOException {
 		LongOpenHashSet uidset = new LongOpenHashSet();

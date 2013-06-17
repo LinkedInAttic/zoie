@@ -32,6 +32,10 @@ public interface DirectoryManager
   boolean transferFromChannelToFile(ReadableByteChannel channel, String fileName) throws IOException;
 
   long transferFromFileToChannel(String fileName, WritableByteChannel channel) throws IOException;
+
+  boolean transferFromChannelToFile(ReadableByteChannel channel, String fileName, long maxBps) throws IOException;
+
+  long transferFromFileToChannel(String fileName, WritableByteChannel channel, long maxBps) throws IOException;
   public static enum DIRECTORY_MODE
   {
     /**
