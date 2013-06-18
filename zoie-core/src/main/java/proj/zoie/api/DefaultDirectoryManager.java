@@ -28,7 +28,7 @@ public class DefaultDirectoryManager implements DirectoryManager
   private File _location;
   private final DIRECTORY_MODE _mode;
   
-  private final long DEFAULT_CHUNK_SIZE = 8192L;
+  private final long DEFAULT_CHUNK_SIZE = 65536L;
   
   public DefaultDirectoryManager(File location)
   {
