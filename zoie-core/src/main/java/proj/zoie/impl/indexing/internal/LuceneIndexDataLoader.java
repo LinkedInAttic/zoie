@@ -245,6 +245,9 @@ public abstract class LuceneIndexDataLoader<R extends IndexReader> implements Da
     {
       try
       {
+        log.info("Starting disk index partial optimization");
+        long start = System.nanoTime();
+
         // hao: get disk search idx, 
         BaseSearchIndex<R> idx = getSearchIndex();
         //hao: merge the realyOnly ram idx with the disk idx
@@ -267,6 +270,8 @@ public abstract class LuceneIndexDataLoader<R extends IndexReader> implements Da
         //System.out.println("disk verson from the signature" + newVersion.toString());        
                
         //idx.setVersion(Math.max(idx.getVersion(), ramIndex.getVersion()));
+
+        log.info("Finished disk index partial optimization in " + (System.nanoTime() - start) + "ns");
       }
       catch(IOException ioe)
       {
