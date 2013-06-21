@@ -14,6 +14,7 @@ import org.apache.log4j.PatternLayout;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.Filter;
 import org.junit.After;
 import org.junit.Before;
 
@@ -106,20 +107,39 @@ public class ZoieTestCaseBase
     return new File(System.getProperty("java.io.tmpdir"));
   }
 
-  protected static ZoieSystem<IndexReader,String> createZoie(File idxDir,boolean realtime, Comparator<String> versionComparator)
+  protected static ZoieSystem<IndexReader,String> createZoie(File idxDir,
+                                                             boolean realtime,
+                                                             Comparator<String> versionComparator)
   {
-    return createZoie(idxDir, realtime, 20, versionComparator);
+    return createZoie(idxDir, realtime, 20, versionComparator, null);
+  }
+
+  protected static ZoieSystem<IndexReader,String> createZoie(File idxDir,
+                                                             boolean realtime,
+                                                             Comparator<String> versionComparator,
+                                                             Filter purgeFilter)
+  {
+    return createZoie(idxDir, realtime, 20, versionComparator, purgeFilter);
   }
 
 
-  protected static ZoieSystem<IndexReader,String> createZoie(File idxDir,boolean realtime, Comparator<String> versionComparator,boolean immediateRefresh)
+  protected static ZoieSystem<IndexReader,String> createZoie(File idxDir,
+                                                             boolean realtime,
+                                                             Comparator<String> versionComparator,
+                                                             boolean immediateRefresh,
+                                                             Filter purgeFilter)
   {
-    return createZoie(idxDir, realtime, 20, versionComparator,immediateRefresh);
+    return createZoie(idxDir, realtime, 20, versionComparator,immediateRefresh, purgeFilter);
   }
 
-  protected static ZoieSystem<IndexReader,String> createZoie(File idxDir,boolean realtime, long delay, Comparator<String> versionComparator,boolean immediateRefresh)
+  protected static ZoieSystem<IndexReader,String> createZoie(File idxDir,
+                                                             boolean realtime,
+                                                             long delay,
+                                                             Comparator<String> versionComparator,
+                                                             boolean immediateRefresh,
+                                                             Filter purgeFilter)
   {
-    return createZoie(idxDir,realtime,delay,null,null,versionComparator,immediateRefresh);
+    return createZoie(idxDir,realtime,delay,null,null,versionComparator,immediateRefresh, purgeFilter);
   }
 
 
@@ -130,14 +150,21 @@ public class ZoieTestCaseBase
    * @param zoieVersionFactory
    * @return
    */
-  protected static ZoieSystem<IndexReader,String> createZoie(File idxDir,boolean realtime, long delay, Comparator<String> versionComparator)
+  protected static ZoieSystem<IndexReader,String> createZoie(File idxDir,
+                                                             boolean realtime,
+                                                             long delay,
+                                                             Comparator<String> versionComparator,
+                                                             Filter purgeFilter)
   {
-    return createZoie(idxDir,realtime,delay,null,null,versionComparator,false);
+    return createZoie(idxDir,realtime,delay,null,null,versionComparator,false, purgeFilter);
   }
 
-  protected static ZoieSystem<IndexReader,String> createZoie(File idxDir,boolean realtime,DocIDMapperFactory docidMapperFactory, Comparator<String> versionComparator)
+  protected static ZoieSystem<IndexReader,String> createZoie(File idxDir, boolean realtime,
+                                                             DocIDMapperFactory docidMapperFactory,
+                                                             Comparator<String> versionComparator,
+                                                             Filter purgeFilter)
   {
-    return createZoie(idxDir, realtime, 2,null,docidMapperFactory, versionComparator,false);
+    return createZoie(idxDir, realtime, 2,null,docidMapperFactory, versionComparator,false, purgeFilter);
   }
 
   /**
@@ -149,7 +176,14 @@ public class ZoieTestCaseBase
    * @param zoieVersionFactory
    * @return
    */
-  protected static ZoieSystem<IndexReader,String> createZoie(File idxDir,boolean realtime, long delay,Analyzer analyzer,DocIDMapperFactory docidMapperFactory, Comparator<String> versionComparator,boolean immediateRefresh)
+  protected static ZoieSystem<IndexReader,String> createZoie(File idxDir,
+                                                             boolean realtime,
+                                                             long delay,
+                                                             Analyzer analyzer,
+                                                             DocIDMapperFactory docidMapperFactory,
+                                                             Comparator<String> versionComparator,
+                                                             boolean immediateRefresh,
+                                                             Filter purgeFilter)
   {
     ZoieConfig config = new ZoieConfig();
     config.setDocidMapperFactory(docidMapperFactory);
@@ -159,11 +193,12 @@ public class ZoieTestCaseBase
     config.setVersionComparator(versionComparator);
     config.setSimilarity(null);
     config.setAnalyzer(null);
+    config.setPurgeFilter(purgeFilter);
     if (immediateRefresh){
       config.setReadercachefactory(SimpleReaderCache.FACTORY);
     }
     ZoieSystem<IndexReader,String> idxSystem=new ZoieSystem<IndexReader, String>(idxDir,new DataInterpreterForTests(delay,analyzer),
-        new TestIndexReaderDecorator(),config);
+        new TestIndexReaderDecorator(), config);
     return idxSystem;
   }
 

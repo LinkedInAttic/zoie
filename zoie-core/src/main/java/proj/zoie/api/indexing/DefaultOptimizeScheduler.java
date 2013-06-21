@@ -31,7 +31,7 @@ public class DefaultOptimizeScheduler extends OptimizeScheduler {
 	
 	private long _optimizeDuration;
 	
-    private volatile boolean _optimizeScheduled;
+  private volatile boolean _optimizeScheduled;
 	private OptimizeType _optimizeType;
 	
 	private Timer _optimizeTimer;

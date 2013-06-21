@@ -163,73 +163,69 @@ public class IndexReaderDispenser<R extends IndexReader>
       return reader;
     }
 
-    /**
-     * get a fresh new reader instance
-     * @return an IndexReader instance, can be null if index does not yet exit
-     * @throws IOException
-     */
-    public ZoieIndexReader<R> getNewReader() throws IOException
+    public ZoieIndexReader<R> getNewReader(boolean forceReopen) throws IOException
     {
-        int numTries=INDEX_OPEN_NUM_RETRIES;   
-        InternalIndexReader<R> reader=null;
-              
-        // try it for a few times, there is a case where lucene is swapping the segment file, 
-        // or a case where the index directory file is updated, both are legitimate,
-        // trying again does not block searchers,
-        // the extra time it takes to get the reader, and to sync the index, memory index is collecting docs
-       
-    while(reader==null)
-    {
-      if (numTries==0)
-      {
-        break;
-      }
-      numTries--;
-      try{
-        IndexSignature sig = new IndexSignature(_dirMgr.getVersion());
-        
-        if (_currentReader==null){
-          reader = newReader(_dirMgr, _decorator, sig);
+      int numTries = INDEX_OPEN_NUM_RETRIES;
+      InternalIndexReader<R> reader = null;
+
+      // try it for a few times, there is a case where lucene is swapping the segment file,
+      // or a case where the index directory file is updated, both are legitimate,
+      // trying again does not block searchers,
+      // the extra time it takes to get the reader, and to sync the index, memory index is collecting docs
+
+      while (reader == null) {
+        if (numTries == 0) {
+          break;
+        }
+        numTries--;
+        try {
+          IndexSignature sig = new IndexSignature(_dirMgr.getVersion());
+
+          if (_currentReader == null || forceReopen) {
+            reader = newReader(_dirMgr, _decorator, sig);
             break;
-        }
-        else{
-          reader = (InternalIndexReader<R>)_currentReader.reopen(true);
-          _currentSignature = sig;
-        }
-      }
-      catch(IOException ioe)
-      {
-        try
-        {
-          Thread.sleep(100);
-        }
-        catch (InterruptedException e)
-        {
-        log.warn("thread interrupted.");
-          continue;
+          } else {
+            reader = (InternalIndexReader<R>) _currentReader.reopen(true);
+            _currentSignature = sig;
+          }
+        } catch (IOException ioe) {
+          try {
+            Thread.sleep(100);
+          } catch (InterruptedException e) {
+            log.warn("thread interrupted.");
+            continue;
+          }
         }
       }
+
+      // swap the internal readers
+      if (_currentReader != reader) {
+        if (reader != null) {
+          DocIDMapper<?> mapper = _idx._idxMgr._docIDMapperFactory.getDocIDMapper(reader);
+          reader.setDocIDMapper(mapper);
+        }
+        // assume that this is the only place that _currentReader gets refreshed
+        IndexReader oldReader = _currentReader;
+        _currentReader = reader;
+        // we release our hold on the old reader so that it will be closed when
+        // all the clients release their hold on it, the reader will be closed
+        // automatically.
+        log.info("swap disk reader and release old one from system");
+        if (oldReader != null) ((ZoieIndexReader<?>) oldReader).decZoieRef();//.decRef();
+      }
+      return reader;
     }
 
-    // swap the internal readers
-    if (_currentReader != reader)
-    {
-      if (reader!=null){
-        DocIDMapper<?> mapper = _idx._idxMgr._docIDMapperFactory.getDocIDMapper(reader);
-        reader.setDocIDMapper(mapper);
-      }
-      // assume that this is the only place that _currentReader gets refreshed 
-      IndexReader oldReader = _currentReader;
-      _currentReader = reader;
-      // we release our hold on the old reader so that it will be closed when
-      // all the clients release their hold on it, the reader will be closed
-      // automatically.
-      log.info("swap disk reader and release old one from system");
-      if (oldReader !=null) ((ZoieIndexReader<?>)oldReader).decZoieRef();//.decRef();
-    }
-    return reader;
+  /**
+   * get a fresh new reader instance
+   *
+   * @return an IndexReader instance, can be null if index does not yet exit
+   * @throws IOException
+   */
+  public ZoieIndexReader<R> getNewReader() throws IOException {
+    return getNewReader(false);
   }
-  
+
   public ZoieIndexReader<R> getIndexReader()
   {
     if (_currentReader!=null){
@@ -275,5 +271,10 @@ public class IndexReaderDispenser<R extends IndexReader>
       }
       _currentReader = null;
     }
+  }
+
+  public void closeAndRefresh() {
+    closeReader();
+
   }
 }

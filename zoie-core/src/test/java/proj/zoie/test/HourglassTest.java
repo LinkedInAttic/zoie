@@ -48,10 +48,7 @@ import proj.zoie.api.ZoieSegmentReader;
 import proj.zoie.api.indexing.IndexReaderDecorator;
 import proj.zoie.hourglass.api.HourglassIndexable;
 import proj.zoie.hourglass.api.HourglassIndexableInterpreter;
-import proj.zoie.hourglass.impl.HourGlassScheduler;
-import proj.zoie.hourglass.impl.Hourglass;
-import proj.zoie.hourglass.impl.HourglassDirectoryManagerFactory;
-import proj.zoie.hourglass.impl.HourglassListener;
+import proj.zoie.hourglass.impl.*;
 import proj.zoie.hourglass.mbean.HourglassAdmin;
 import proj.zoie.impl.indexing.MemoryStreamDataProvider;
 import proj.zoie.impl.indexing.ZoieConfig;
@@ -499,9 +496,8 @@ public class HourglassTest extends ZoieTestCaseBase {
         }, zConfig);
     HourglassAdmin mbean = new HourglassAdmin(hourglass);
     java.lang.reflect.Field field;
-    Object readerManager = getFieldValue(hourglass, "_readerMgr");
-    Object maintenanceThread = getFieldValue(readerManager, "maintenanceThread");
-    Runnable runnable = (Runnable) getFieldValue(maintenanceThread, "target");
+    HourglassReaderManager readerManager = (HourglassReaderManager) getFieldValue(hourglass, "_readerMgr");
+    HourglassReaderManager.HourglassMaintenance runnable = (HourglassReaderManager.HourglassMaintenance) getFieldValue(readerManager, "hourglassMaintenance");
     ZoieSystem currentZoie = (ZoieSystem) getFieldValue(hourglass, "_currentZoie");
     MBeanServer mbeanServer = ManagementFactory.getPlatformMBeanServer();
     try {

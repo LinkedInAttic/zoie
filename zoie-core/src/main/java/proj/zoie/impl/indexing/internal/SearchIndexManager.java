@@ -486,10 +486,10 @@ public class SearchIndexManager<R extends IndexReader> implements IndexReaderFac
   {
     log.info("purging index ...");
     _diskIndex.clearDeletes();
-    _diskIndex.refresh();
+    _diskIndex.refresh(false);
     _diskIndex.closeIndexWriter();
     _dirMgr.purge();
-    _diskIndex.refresh();
+    _diskIndex.refresh(false);
     if (_mem.get_memIndexA()!=null){_mem.get_memIndexA().close();}
     if (_mem.get_memIndexB()!=null){_mem.get_memIndexB().close();}
     RAMSearchIndex<R> memIndexA = _ramIndexFactory.newInstance(_diskIndex.getVersion(), _indexReaderDecorator, this);
