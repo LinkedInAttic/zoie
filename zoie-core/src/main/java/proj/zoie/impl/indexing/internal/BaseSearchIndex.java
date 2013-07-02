@@ -88,7 +88,7 @@ public abstract class BaseSearchIndex<R extends IndexReader> {
 	  
 	  abstract protected IndexReader openIndexReaderForDelete() throws IOException;
 	  
-      abstract public void refresh() throws IOException;
+    abstract public void refresh(boolean forceFullReopen) throws IOException;
 
       public void updateIndex(LongSet delDocs, List<IndexingReq> insertDocs,Analyzer defaultAnalyzer,Similarity similarity)
 	      throws IOException

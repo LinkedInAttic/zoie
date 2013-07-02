@@ -139,14 +139,14 @@ public class DiskSearchIndex<R extends IndexReader> extends BaseSearchIndex<R>{
    * Refreshes the index reader
    */
   @Override
-  public void refresh()
+  public void refresh(boolean forceReopen)
   {
     synchronized(this)
     {
       try {
         LongSet delDocs = _delDocs;
         clearDeletes();
-        _dispenser.getNewReader();
+        _dispenser.getNewReader(forceReopen);
         markDeletes(delDocs); // re-mark deletes
         commitDeletes();
       } catch (IOException e) {
@@ -255,7 +255,7 @@ public class DiskSearchIndex<R extends IndexReader> extends BaseSearchIndex<R>{
   {
     synchronized(this)
     {
-      refresh();
+      refresh(false);
       commitDeletes();
       ZoieIndexReader<R> reader = _dispenser.getIndexReader();
       return reader;

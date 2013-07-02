@@ -42,11 +42,13 @@
 			   <artifactId>git-commit-id-plugin</artifactId>
 			   <version>1.9</version>
 			   <executions>
+			   
 			     <execution>
 			        <goals>
 			          <goal>revision</goal>
 			        </goals>
 			     </execution>
+			     
 			   </executions>
 			   <configuration>
 			     <prefix>git</prefix>

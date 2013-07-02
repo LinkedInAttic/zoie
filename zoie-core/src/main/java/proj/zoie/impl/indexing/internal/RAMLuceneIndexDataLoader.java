@@ -30,9 +30,12 @@ import proj.zoie.api.indexing.IndexingEventListener;
 public class RAMLuceneIndexDataLoader<R extends IndexReader> extends LuceneIndexDataLoader<R>
 {
 
-	public RAMLuceneIndexDataLoader(Analyzer analyzer, Similarity similarity,SearchIndexManager<R> idxMgr,Comparator<String> comparator,Queue<IndexingEventListener> lsnrList)
+	public RAMLuceneIndexDataLoader(Analyzer analyzer, Similarity similarity,
+                                  SearchIndexManager<R> idxMgr,
+                                  Comparator<String> comparator,
+                                  Queue<IndexingEventListener> lsnrList)
 	{
-		super(analyzer, similarity,idxMgr,comparator,lsnrList);
+		super(analyzer, similarity,idxMgr,comparator,lsnrList, null, null, 0, 0);
 	}
 
 	@Override
@@ -71,4 +74,10 @@ public class RAMLuceneIndexDataLoader<R extends IndexReader> extends LuceneIndex
 	    diskIdx.commitDeletes();
 	  }
 	}
+
+  @Override
+  public void close()
+  {
+
+  }
 }
