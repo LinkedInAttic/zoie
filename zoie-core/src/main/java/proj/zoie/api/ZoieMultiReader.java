@@ -45,7 +45,7 @@ public class ZoieMultiReader<R extends IndexReader> extends ZoieIndexReader<R>
 	private int[] _starts;
 	private List<R> _decoratedReaders;
 	
-	public ZoieMultiReader(IndexReader in,IndexReaderDecorator<R> decorator) throws IOException
+	public ZoieMultiReader(IndexReader in, IndexReaderDecorator<R> decorator) throws IOException
 	{
 	  super(in,decorator);
 	  _readerMap = new HashMap<String,ZoieSegmentReader<R>>();
@@ -54,7 +54,7 @@ public class ZoieMultiReader<R extends IndexReader> extends ZoieIndexReader<R>
 	  init(subReaders);
 	}
 
-	public ZoieMultiReader(IndexReader in,IndexReader[] subReaders,IndexReaderDecorator<R> decorator) throws IOException {
+	public ZoieMultiReader(IndexReader in,IndexReader[] subReaders, IndexReaderDecorator<R> decorator) throws IOException {
 		super(in,decorator);
 		_readerMap = new HashMap<String,ZoieSegmentReader<R>>();
 		_decoratedReaders = null; 
@@ -109,7 +109,7 @@ public class ZoieMultiReader<R extends IndexReader> extends ZoieIndexReader<R>
     	for (ZoieSegmentReader<R> subReader : _subZoieReaders){
     		R decoratedReader = subReader.getDecoratedReader();
     		decoratedList.add(decoratedReader);
-    		subReader.incSegmentRef();
+    		subReader.incZoieRef();
     	}
     	_decoratedReaders = decoratedList;
 	}
@@ -262,8 +262,7 @@ public class ZoieMultiReader<R extends IndexReader> extends ZoieIndexReader<R>
 	  }
 	  finally{
 	    for (ZoieSegmentReader<R> r : _subZoieReaders){
-	     // r.decRef();
-	      r.decSegmentRef();
+	      r.decZoieRef();
 	    }
 	  }
 	}
