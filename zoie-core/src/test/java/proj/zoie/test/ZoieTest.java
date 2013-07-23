@@ -582,7 +582,7 @@ public class ZoieTest extends ZoieTestCaseBase {
 
       log.info("new numdocs: "+numDocs);
       //TODO for some reasons numdocs might be 6. I've put a temporary fix to avoid sporadical failures
-      TestCase.assertTrue("numdDocs should be 5" + numDocs, (numDocs == 5 || numDocs == 6));
+      TestCase.assertTrue("numdDocs should be 5 but is " + numDocs, (numDocs == 5 || numDocs == 6));
 
       idxSystem.returnIndexReaders(readers);
 
