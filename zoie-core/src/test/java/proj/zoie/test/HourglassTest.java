@@ -417,27 +417,32 @@ public class HourglassTest extends ZoieTestCaseBase {
     return sdf.format(cal.getTime());
 
   }
-  private void doTrimmingTest(File idxDir, String schedule,  int trimThreshold) throws Exception  {
-    HourglassDirectoryManagerFactory factory = new HourglassDirectoryManagerFactory(idxDir, new HourGlassScheduler(
-        HourGlassScheduler.FREQUENCY.MINUTELY, schedule, true, trimThreshold) {
-      volatile Long nextTime;
-      @Override
-      protected Calendar getNextRoll() {
-        if (nextTime == null) {
-          nextTime = System.currentTimeMillis();
-        }
-        nextTime += 1000;
-        Calendar calendar = Calendar.getInstance();
-        calendar.setTimeInMillis(nextTime);
-        return calendar;
-      }
-      @Override
+  private void doTrimmingTest(File idxDir,
+                              String schedule,
+                              int trimThreshold) throws Exception  {
+
+      HourglassDirectoryManagerFactory factory = new HourglassDirectoryManagerFactory(idxDir,
+        new HourGlassScheduler(HourGlassScheduler.FREQUENCY.MINUTELY, schedule, true, trimThreshold) {
+          volatile Long nextTime;
+
+          @Override
+          protected Calendar getNextRoll() {
+            if (nextTime == null) {
+              nextTime = System.currentTimeMillis();
+            }
+            nextTime += 1000;
+            Calendar calendar = Calendar.getInstance();
+            calendar.setTimeInMillis(nextTime);
+            return calendar;
+          }
+
+          @Override
           public Calendar getTrimTime(Calendar now) {
             Calendar ret = Calendar.getInstance();
-            ret.setTimeInMillis(now.getTimeInMillis() + 60L * 60 * 1000 * 48);
+            ret.setTimeInMillis(now.getTimeInMillis() + 48L * 60L * 60L * 1000L);
             return ret;
           }
-    });
+        });
     ZoieConfig zConfig = new ZoieConfig();
     zConfig.setBatchSize(1);
     zConfig.setBatchDelay(10);
@@ -477,29 +482,31 @@ public class HourglassTest extends ZoieTestCaseBase {
     Hourglass<IndexReader, String> hourglass = new Hourglass<IndexReader, String>(factory,
         new HourglassTestInterpreter(), new IndexReaderDecorator<IndexReader>() {
 
-          @Override
-          public IndexReader decorate(ZoieIndexReader<IndexReader> indexReader) throws IOException {
-            return indexReader;
-          }
+      @Override
+      public IndexReader decorate(ZoieIndexReader<IndexReader> indexReader) throws IOException {
+        return indexReader;
+      }
 
-          @Override
-          public IndexReader redecorate(IndexReader decorated, ZoieIndexReader<IndexReader> copy, boolean withDeletes)
-              throws IOException {
-            // TODO Auto-generated method stub
-            return decorated;
-          }
+      @Override
+      public IndexReader redecorate(IndexReader decorated, ZoieIndexReader<IndexReader> copy, boolean withDeletes)
+          throws IOException {
+        // TODO Auto-generated method stub
+        return decorated;
+      }
 
-          @Override
-          public void setDeleteSet(IndexReader reader, DocIdSet docIds) {
-            // Do nothing
-          }
-        }, zConfig);
+      @Override
+      public void setDeleteSet(IndexReader reader, DocIdSet docIds) {
+        // Do nothing
+      }
+    }, zConfig);
+
     HourglassAdmin mbean = new HourglassAdmin(hourglass);
     java.lang.reflect.Field field;
     HourglassReaderManager readerManager = (HourglassReaderManager) getFieldValue(hourglass, "_readerMgr");
     HourglassReaderManager.HourglassMaintenance runnable = (HourglassReaderManager.HourglassMaintenance) getFieldValue(readerManager, "hourglassMaintenance");
     ZoieSystem currentZoie = (ZoieSystem) getFieldValue(hourglass, "_currentZoie");
     MBeanServer mbeanServer = ManagementFactory.getPlatformMBeanServer();
+
     try {
       mbeanServer.registerMBean(mbean, new ObjectName("HouseGlass:name=hourglass"));
     } catch (Exception e) {
@@ -507,6 +514,7 @@ public class HourglassTest extends ZoieTestCaseBase {
     }
     MemoryStreamDataProvider<String> memoryProvider = new MemoryStreamDataProvider<String>(
         ZoieConfig.DEFAULT_VERSION_COMPARATOR);
+
     memoryProvider.setMaxEventsPerMinute(Long.MAX_VALUE);
     memoryProvider.setDataConsumer(hourglass);
     memoryProvider.start();
@@ -553,7 +561,7 @@ public class HourglassTest extends ZoieTestCaseBase {
         Thread.sleep(600);
       }
       synchronized (runnable) {
-        runnable.notifyAll();
+        runnable.run();
       }
       synchronized (currentZoie) {
         //currentZoie.flushEvents(150);
@@ -578,6 +586,7 @@ public class HourglassTest extends ZoieTestCaseBase {
     memoryProvider.stop();
     hourglass.shutdown();
   }
+
   private Object getFieldValue(Object obj, String fieldName)  {
     try {
     java.lang.reflect.Field field = obj.getClass().getDeclaredField(fieldName);
