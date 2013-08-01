@@ -272,7 +272,7 @@ public class ZoieThreadTest extends ZoieTestCaseBase {
 
 	private void testDelBigSetImpl() throws ZoieException {
 		long starttime = System.currentTimeMillis();
-		final long testduration = 3000L; // one minute
+		final long testduration = 120000L; // one minute
 		final long endtime = starttime + testduration;
 		final int membatchsize = 1;
 		File idxDir = getIdxDir();
@@ -337,7 +337,7 @@ public class ZoieThreadTest extends ZoieTestCaseBase {
 								System.out.println(sb.toString());
 								log.info(sb.toString());
 							}
-							Thread.sleep(2);
+							Thread.sleep(500);
 						} catch (Exception ex) {
 							ex.printStackTrace();
 							exception = ex;

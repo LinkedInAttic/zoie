@@ -27,14 +27,9 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.log4j.Logger;
-import org.apache.lucene.index.CorruptIndexException;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.MultiZoieTermDocs;
-import org.apache.lucene.index.MultiZoieTermPositions;
-import org.apache.lucene.index.SegmentReader;
-import org.apache.lucene.index.TermDocs;
-import org.apache.lucene.index.TermPositions;
+import org.apache.lucene.index.*;
 
+import org.apache.lucene.store.AlreadyClosedException;
 import proj.zoie.api.indexing.IndexReaderDecorator;
 
 public class ZoieMultiReader<R extends IndexReader> extends ZoieIndexReader<R>
@@ -370,12 +365,26 @@ public class ZoieMultiReader<R extends IndexReader> extends ZoieIndexReader<R>
     {
       zoieSubReaders.add(r.copy());
     }
-    this.in.incRef();
-    ZoieMultiReader<R> ret = this.newInstance(this.in, zoieSubReaders.toArray(new IndexReader[zoieSubReaders.size()]));
+
+    IndexReader innerReader = getAndIncReader();
+    ZoieMultiReader<R> ret = this.newInstance(innerReader, zoieSubReaders.toArray(new IndexReader[zoieSubReaders.size()]));;
     ret._docIDMapper = this._docIDMapper;
     ret._minUID = this._minUID;
     ret._maxUID = this._maxUID;
     ret._noDedup = this._noDedup;
     return ret;
+  }
+
+  private IndexReader getAndIncReader() throws IOException {
+    boolean incedRef = this.in.tryIncRef();
+
+    if(!incedRef) {
+      log.error("Could not increment the reference count for multireader. The inner reader was already closed! Please fix me!");
+
+      // THIS IS A BIG HACK FOR SOMETHING THAT APPEARS VERY TRANSIENTLY. WE NEED A STRATEGY TO TRACK THIS DOWN
+      return IndexReader.open(this.in.directory(), true);
+    } else {
+      return this.in;
+    }
   }
 }
