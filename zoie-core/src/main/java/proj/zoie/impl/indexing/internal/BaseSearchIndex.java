@@ -156,17 +156,21 @@ public abstract class BaseSearchIndex<R extends IndexReader> {
 	  
 	  public void commitDeletes() throws IOException
 	  {
-        ZoieIndexReader<R> reader = null;
-        synchronized(this)
-        {
+      ZoieIndexReader<R> reader = null;
+      try {
+        synchronized (this) {
           reader = openIndexReader();
-          if(reader == null)
+          if (reader == null)
             return;
           reader.incZoieRef();
         }
         reader.commitDeletes();
-        reader.decZoieRef();
-	  }
+      } finally {
+        if(reader != null) {
+          reader.decZoieRef();
+        }
+      }
+    }
 	  
 	  private void deleteDocs(LongSet delDocs) throws IOException
 	  {
