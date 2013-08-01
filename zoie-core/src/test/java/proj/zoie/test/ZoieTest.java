@@ -540,8 +540,18 @@ public class ZoieTest extends ZoieTestCaseBase {
 
       idxSystem.flushEvents(10000);
 
-      List<ZoieIndexReader<IndexReader>> readers = idxSystem
-          .getIndexReaders();
+      List<ZoieIndexReader<IndexReader>> readers = null;
+      try {
+        readers = idxSystem
+            .getIndexReaders();
+      } catch (Throwable ex) {
+        log.error("Failed getting index readers", ex);
+        System.out.println("Failed getting index readers");
+        for(StackTraceElement line : ex.getStackTrace()) {
+          System.out.println(line.toString());
+        }
+        throw new ZoieException();
+      }
 
       MultiReader multiReader = new MultiReader(readers.toArray(new IndexReader[0]), false);
 
@@ -670,8 +680,19 @@ public class ZoieTest extends ZoieTestCaseBase {
 
       idxSystem.getAdminMBean().flushToDiskIndex();
       idxSystem.refreshDiskReader();
-      List<ZoieIndexReader<IndexReader>> readers = idxSystem
+
+      List<ZoieIndexReader<IndexReader>> readers = null;
+      try {
+      readers = idxSystem
           .getIndexReaders();
+      } catch (Exception ex) {
+        log.error("Failed getting index readers", ex);
+        System.out.println("Failed getting index readers");
+        for(StackTraceElement line : ex.getStackTrace()) {
+          System.out.println(line.toString());
+        }
+        throw new ZoieException();
+      }
 
       MultiReader multiReader = new MultiReader(readers.toArray(new IndexReader[0]), false);
 

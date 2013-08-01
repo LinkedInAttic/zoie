@@ -126,22 +126,26 @@ public abstract class LuceneIndexDataLoader<R extends IndexReader> implements Da
         ZoieIndexReader<R> reader = null;
         try {
           synchronized (idx) {
+
             idx.refresh(false);
+
             reader = idx.openIndexReader();
             if (reader != null)
               reader.incZoieRef();
           }
 
-          writeReader = idx.openIndexReaderForDelete();
+          if(reader != null) {
+            writeReader = idx.openIndexReaderForDelete();
+            if(writeReader != null) {
+              DocIdSetIterator iter = _purgeFilter.getDocIdSet(reader).iterator();
 
-          DocIdSetIterator iter = _purgeFilter.getDocIdSet(reader).iterator();
-
-          int doc;
-          while ((doc = iter.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-            count++;
-            writeReader.deleteDocument(doc);
+              int doc;
+              while ((doc = iter.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                count++;
+                writeReader.deleteDocument(doc);
+              }
+            }
           }
-
         } catch (Throwable th) {
           log.error("problem creating purge filter: " + th.getMessage(), th);
         } finally {
