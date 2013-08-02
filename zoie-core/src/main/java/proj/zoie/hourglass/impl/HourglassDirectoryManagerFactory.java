@@ -77,7 +77,7 @@ public class HourglassDirectoryManagerFactory
     return _mode;
   }
 
-  private FSDirectory getFSDirectoryFromFile(File f) throws IOException
+  FSDirectory getFSDirectoryFromFile(File f) throws IOException
   {
     FSDirectory dir = null;
     switch(_mode)
