@@ -19,6 +19,8 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.MMapDirectory;
+import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.SimpleFSDirectory;
 
 import proj.zoie.api.*;
@@ -39,6 +41,19 @@ public class HourglassReaderManager<R extends IndexReader, D>
   private final boolean _appendOnly;
   private final HourglassMaintenance hourglassMaintenance;
   private final ScheduledThreadPoolExecutor executor;
+
+  public static File getDirectory(Directory directory) {
+    if(directory instanceof SimpleFSDirectory) {
+      return ((SimpleFSDirectory) directory).getDirectory();
+    } else if (directory instanceof MMapDirectory) {
+      return ((MMapDirectory) directory).getDirectory();
+    } else if (directory instanceof NIOFSDirectory) {
+      return ((NIOFSDirectory) directory).getDirectory();
+    } else {
+      throw new IllegalArgumentException("Unknown directory type for hourglass " + directory.getClass
+          ());
+    }
+  }
 
   public class HourglassMaintenance implements Runnable {
     @Override
@@ -232,8 +247,9 @@ public class HourglassReaderManager<R extends IndexReader, D>
 
     for (ZoieIndexReader<R> reader: readerList)
     {
-      SimpleFSDirectory dir = (SimpleFSDirectory) reader.directory();
-      String path = dir.getDirectory().getName();
+      Directory readerDirectory = reader.directory();
+      File dir = getDirectory(readerDirectory);
+      String path = dir.getName();
 
       if (foundOldestToKeep)
       {
@@ -241,9 +257,9 @@ public class HourglassReaderManager<R extends IndexReader, D>
           listener.onIndexReaderCleanUp(reader);
         }
         log.info("trimming: remove " + path);
-        log.info(dir.getDirectory() + " -before--" + (dir.getDirectory().exists()?" not deleted ":" deleted"));
-        FileUtil.rmDir(dir.getDirectory());
-        log.info(dir.getDirectory() + " -after--" + (dir.getDirectory().exists()?" not deleted ":" deleted"));
+        log.info(dir + " -before--" + (dir.exists()?" not deleted ":" deleted"));
+        FileUtil.rmDir(dir);
+        log.info(dir + " -after--" + (dir.exists() ? " not deleted " : " deleted"));
         continue;
       }
       else
@@ -522,7 +538,8 @@ public class HourglassReaderManager<R extends IndexReader, D>
   private IndexReader getArchive(ZoieSystem<R, D> zoie) throws CorruptIndexException, IOException
   {
     String dirName = zoie.getAdminMBean().getIndexDir();
-    Directory dir = new SimpleFSDirectory(new File(dirName));
+    Directory dir = _dirMgrFactory.getFSDirectoryFromFile(new File(dirName));
+
     IndexReader reader = null;
     if (IndexReader.indexExists(dir))
     {
