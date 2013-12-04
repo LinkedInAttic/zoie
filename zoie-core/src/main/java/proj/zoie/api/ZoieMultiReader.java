@@ -252,12 +252,19 @@ public class ZoieMultiReader<R extends IndexReader> extends ZoieIndexReader<R>
 	
 	@Override
 	protected void doClose() throws IOException {
-	  try{
+	  try {
 	    super.doClose();
 	  }
-	  finally{
-	    for (ZoieSegmentReader<R> r : _subZoieReaders){
-	      r.decZoieRef();
+	  finally {
+	    for (ZoieSegmentReader<R> r : _subZoieReaders) {
+	      try
+        {
+          r.decZoieRef();
+        }
+        catch (Exception ex)
+        {
+          log.error("Error decrementing zoie ref while closing the multi reader!", ex);
+        }
 	    }
 	  }
 	}

@@ -142,16 +142,25 @@ public abstract class BaseSearchIndex<R extends IndexReader> {
 	    if(delDocs != null && delDocs.size() > 0)
 	    {
         ZoieIndexReader<R> reader = null;
-        synchronized(this)
+        try
         {
-          reader = openIndexReader();
-          if(reader == null)
-            return;
-          reader.incZoieRef();
-          reader.markDeletes(delDocs, _delDocs);
+          synchronized(this)
+          {
+            reader = openIndexReader();
+            if(reader == null)
+              return;
+            reader.incZoieRef();
+            reader.markDeletes(delDocs, _delDocs);
+          }
         }
-        reader.decZoieRef();
-	    }
+        finally
+        {
+          if(reader != null)
+          {
+            reader.decZoieRef();
+          }
+        }
+      }
 	  }
 	  
 	  public void commitDeletes() throws IOException
@@ -178,29 +187,35 @@ public abstract class BaseSearchIndex<R extends IndexReader> {
 	    if (delDocs!=null && delDocs.size() > 0)
 	    {
         ZoieIndexReader<R> reader = null;
-        synchronized(this)
+        try
         {
-          reader = openIndexReader();
-          if(reader == null)
-            return;
-          reader.incZoieRef();
-        }
-        IntList delList = new IntArrayList(delDocs.size());
-        DocIDMapper<?> idMapper = reader.getDocIDMaper();
-        LongIterator iter = delDocs.iterator();
-          
-        while(iter.hasNext()){
-          long uid = iter.nextLong();
-          if (ZoieIndexReader.DELETED_UID!=uid){
-            int docid = idMapper.getDocID(uid);
-            if (docid!=DocIDMapper.NOT_FOUND){
-              delList.add(docid);
+          synchronized(this)
+          {
+            reader = openIndexReader();
+            if(reader == null)
+              return;
+            reader.incZoieRef();
+          }
+          IntList delList = new IntArrayList(delDocs.size());
+          DocIDMapper<?> idMapper = reader.getDocIDMaper();
+          LongIterator iter = delDocs.iterator();
+
+          while(iter.hasNext()){
+            long uid = iter.nextLong();
+            if (ZoieIndexReader.DELETED_UID!=uid){
+              int docid = idMapper.getDocID(uid);
+              if (docid!=DocIDMapper.NOT_FOUND){
+                delList.add(docid);
+              }
             }
           }
+          delArray = delList.toIntArray();
         }
-        delArray = delList.toIntArray();
-
-        reader.decZoieRef();
+        finally
+        {
+          if(reader != null)
+            reader.decZoieRef();
+        }
 	    }
 	      
 	    if (delArray!=null && delArray.length > 0)

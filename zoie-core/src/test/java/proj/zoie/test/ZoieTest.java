@@ -499,6 +499,19 @@ public class ZoieTest extends ZoieTestCaseBase {
 	  }
   }
 
+  private void searchTest(List<? extends ZoieIndexReader<? extends IndexReader>> readerList) throws ParseException, IOException {
+    // combine the readers
+    MultiReader reader = new MultiReader(readerList.toArray(new IndexReader[readerList.size()]),false);
+    // do search
+    IndexSearcher searcher = new IndexSearcher(reader);
+    QueryParser parser = new QueryParser(Version.LUCENE_35, "num", new StandardAnalyzer(Version.LUCENE_35));
+    Query q = parser.parse("num:abc*");
+    TopDocs ret = searcher.search(q, 100);
+    TestCase.assertEquals(3, ret.totalHits);
+    searcher.close();
+  }
+
+
   private ZoieSystem<IndexReader, String> buildPurgeSystem(File idxDir, Filter purgeFilter, ZoieIndexableInterpreter interpreter) throws ZoieException, IOException {
     MemoryStreamDataProvider<String> memoryProvider =
         new MemoryStreamDataProvider<String>(ZoieConfig.DEFAULT_VERSION_COMPARATOR);
@@ -550,7 +563,7 @@ public class ZoieTest extends ZoieTestCaseBase {
         for(StackTraceElement line : ex.getStackTrace()) {
           System.out.println(line.toString());
         }
-        throw new ZoieException();
+        throw new ZoieException(ex);
       }
 
       MultiReader multiReader = new MultiReader(readers.toArray(new IndexReader[0]), false);

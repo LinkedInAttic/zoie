@@ -78,7 +78,14 @@ public class RAMSearchIndex<R extends IndexReader> extends BaseSearchIndex<R>
     super.close();
     if (_currentReader != null)
     {
-      _currentReader.decZoieRef();
+      try
+      {
+        _currentReader.decZoieRef();
+      }
+      catch (Exception ex)
+      {
+        log.error("Error decrementing zoie ref for the ram index", ex);
+      }
     }
     if (_directory != null)
     {
@@ -243,10 +250,11 @@ public class RAMSearchIndex<R extends IndexReader> extends BaseSearchIndex<R>
     synchronized (this)
     {
       ZoieIndexReader<R> reader = null;
-      if (_currentReader == null)
+      if (_currentReader == null || forceRefresh)
       {
         reader = openIndexReaderInternal();
-      } else
+      }
+      else
       {
         reader = (ZoieIndexReader<R>) _currentReader.reopen(true);
         if (reader != _currentReader)
@@ -261,7 +269,16 @@ public class RAMSearchIndex<R extends IndexReader> extends BaseSearchIndex<R>
         ZoieIndexReader<R> oldReader = _currentReader;
         _currentReader = reader;
         if (oldReader != null)
-          ((ZoieIndexReader<?>) oldReader).decZoieRef();// .decRef();
+        {
+          try
+          {
+            ((ZoieIndexReader<?>) oldReader).decZoieRef();
+          }
+          catch (Exception ex)
+          {
+            log.error("Error decrementing zoie ref while refreshing the ram search index!", ex);
+          }
+        }
       }
       LongSet delDocs = _delDocs;
       clearDeletes();

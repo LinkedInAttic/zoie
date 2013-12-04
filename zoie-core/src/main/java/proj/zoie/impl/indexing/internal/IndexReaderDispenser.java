@@ -181,7 +181,7 @@ public class IndexReaderDispenser<R extends IndexReader>
         try {
           IndexSignature sig = new IndexSignature(_dirMgr.getVersion());
 
-          if (_currentReader == null || forceReopen) {
+          if (_currentReader == null || forceReopen || _currentReader.getRefCount() <= 0) {
             reader = newReader(_dirMgr, _decorator, sig);
             break;
           } else {
@@ -211,7 +211,17 @@ public class IndexReaderDispenser<R extends IndexReader>
         // all the clients release their hold on it, the reader will be closed
         // automatically.
         log.info("swap disk reader and release old one from system");
-        if (oldReader != null) ((ZoieIndexReader<?>) oldReader).decZoieRef();//.decRef();
+        if (oldReader != null)
+        {
+          try
+          {
+            ((ZoieIndexReader<?>) oldReader).decZoieRef();
+          }
+          catch (Exception ex)
+          {
+            log.error("Error decrementing zoie ref for old reader while getting a new reader!", ex);
+          }
+        }
       }
       return reader;
     }

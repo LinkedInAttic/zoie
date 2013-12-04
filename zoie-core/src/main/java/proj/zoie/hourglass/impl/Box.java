@@ -49,7 +49,15 @@ public class Box<R extends IndexReader, D>
   {
     for (ZoieIndexReader<R> r : _archives)
     {
-      r.decZoieRef();
+      try
+      {
+        r.decZoieRef();
+      }
+      catch (Exception ex)
+      {
+        log.error("Error decrementing zoie ref for the ram index", ex);
+      }
+
       log.info("refCount at shutdown: " + r.getRefCount() + " " + r.directory());
     }
     for (ZoieSystem<R, D> zoie : _archiveZoies)

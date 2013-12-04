@@ -44,7 +44,7 @@ public abstract class ZoieIndexReader<R extends IndexReader> extends FilterIndex
 	{
 	  zoieRefCounter.incrementAndGet();
 	}
-	public void decZoieRef()
+	public long decZoieRef()
 	{
 	  long refCount = zoieRefCounter.decrementAndGet();
 	  if (refCount < 0)
@@ -61,7 +61,9 @@ public abstract class ZoieIndexReader<R extends IndexReader> extends FilterIndex
         log.error("decZoieRef", e);
       }
 	  }
+    return refCount;
 	}
+
 	protected int[] _delDocIds;
 	protected long _minUID;
 	protected long _maxUID;

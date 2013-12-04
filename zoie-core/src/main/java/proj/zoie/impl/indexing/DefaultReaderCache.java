@@ -150,13 +150,15 @@ public class DefaultReaderCache<R extends IndexReader> extends AbstractReaderCac
             if (readerfactory != null)
             {
               newreaders = readerfactory.getIndexReaders();
-            } else
+            }
+            else
             {
               newreaders = new ArrayList<ZoieIndexReader<R>>();
             }
-          } catch (IOException e)
+          }
+          catch (Exception e)
           {
-            log.info("DefaultReaderCache-zoie-indexReader-maintenance", e);
+            log.error("DefaultReaderCache-zoie-indexReader-maintenance", e);
             newreaders = new ArrayList<ZoieIndexReader<R>>();
           }
         }
@@ -177,13 +179,22 @@ public class DefaultReaderCache<R extends IndexReader> extends AbstractReaderCac
         ConcurrentLinkedQueue<List<ZoieIndexReader<R>>> oldreturningIndexReaderQueue = returningIndexReaderQueue;
         returningIndexReaderQueue = new ConcurrentLinkedQueue<List<ZoieIndexReader<R>>>();
         returningIndexReaderQueueLock.writeLock().unlock();
+
         for (List<ZoieIndexReader<R>> readers : oldreturningIndexReaderQueue)
         {
           for (ZoieIndexReader<R> r : readers)
           {
-            r.decZoieRef();
+            try
+            {
+              r.decZoieRef();
+            }
+            catch (Exception ex)
+            {
+              log.error("Error decrementing zoie ref in maintenance thread!", ex);
+            }
           }
         }
+
         if (_readerfactory.get() == null && cachedreaders.size() == 0)
         {
           log.info("ZoieSystem has been GCed. Exiting DefaultReaderCache Maintenance Thread " + this);

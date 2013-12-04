@@ -325,7 +325,14 @@ public class HourglassReaderManager<R extends IndexReader, D>
     archives.removeAll(remove);
     for(ZoieIndexReader<R> r : remove)
     {
-      r.decZoieRef();
+      try
+      {
+        r.decZoieRef();
+      }
+      catch (Exception ex)
+      {
+        log.error("Error decrementing zoie ref during hourglass maintenance!", ex);
+      }
       if (log.isDebugEnabled())
       {
         log.debug("remove time " + r.directory() + " refCount: " + r.getRefCount());

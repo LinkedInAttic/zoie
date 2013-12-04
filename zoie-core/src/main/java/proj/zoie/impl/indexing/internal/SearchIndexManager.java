@@ -216,74 +216,120 @@ public class SearchIndexManager<R extends IndexReader> implements IndexReaderFac
 	    return _diskIndexerStatus;
 	  }
 	  
-	  public List<ZoieIndexReader<R>> getIndexReaders()
-	  throws IOException
+	  public List<ZoieIndexReader<R>> getIndexReaders() throws IOException
 	  {
-	    ArrayList<ZoieIndexReader<R>> readers = new ArrayList<ZoieIndexReader<R>>();
-	    ZoieIndexReader<R> reader = null;
+	    return getIndexReaders0(0);
+    }
 
-	    synchronized(this)
+  private static final int MAX_RETRY = 3;
+
+  public List<ZoieIndexReader<R>> getIndexReaders0(int count) throws IOException
+  {
+    ArrayList<ZoieIndexReader<R>> readers = new ArrayList<ZoieIndexReader<R>>();
+    ZoieIndexReader<R> reader = null;
+
+    synchronized(this)
+    {
+      synchronized(_memLock)
       {
-	      synchronized(_memLock)
-	      {
-	        Mem<R> mem = _mem;
-	        RAMSearchIndex<R> memIndexB = mem.get_memIndexB();
-	        RAMSearchIndex<R> memIndexA = mem.get_memIndexA();
+        Mem<R> mem = _mem;
+        RAMSearchIndex<R> memIndexB = mem.get_memIndexB();
+        RAMSearchIndex<R> memIndexA = mem.get_memIndexA();
 
-	        // the following order, e.g. B,A,Disk matters, see ZoieIndexReader.getSubZoieReaderAccessor:
-	        // when doing UID->docid mapping, the freshest index needs to be first
+        // the following order, e.g. B,A,Disk matters, see ZoieIndexReader.getSubZoieReaderAccessor:
+        // when doing UID->docid mapping, the freshest index needs to be first
 
-	        String currentVersion = null;
-	        if (memIndexB != null)                           // load memory index B
-	        {
-            synchronized(memIndexB)
+        String currentVersion = null;
+        if (memIndexB != null)                           // load memory index B
+        {
+          synchronized(memIndexB)
+          {
+            reader = memIndexB.openIndexReader();
+            if (reader != null)
             {
-              reader = memIndexB.openIndexReader();
-              if (reader != null)
-              {
-                reader = reader.copy();
-                reader.setDelDocIds();
-                readers.add(reader);
-              }
-            }
-            _memBVersion = memIndexB.getVersion();
-	        }
+              int refCount = reader.getRefCount();
 
-	        if (memIndexA != null)                           // load memory index A
-	        {
-            synchronized(memIndexA)
-            {
-              reader = memIndexA.openIndexReader();
-              if (reader != null)
+              // If the ref count is zero, attempt to refresh the index and rerun the method
+              if(refCount <= 0 && count < MAX_RETRY)
               {
-                reader = reader.copy();
-                reader.setDelDocIds();
-                readers.add(reader);
+                log.warn("Ref count seems to be zero when getting an index reader. Trying to reopen the memory index reader!");
+                memIndexB.refresh(true);
+                return getIndexReaders0(count + 1);
               }
-            }
-	          _memAVersion = memIndexA.getVersion();
-	        }
-
-	        // load disk index
-	        {
-	          reader = mem.get_diskIndexReader();
-	          if (reader != null)
-	          {
               reader = reader.copy();
-	            reader.setDelDocIds();
-	            readers.add(reader);
-	          }
-	          
-	          _diskVersion = getCurrentDiskVersion();
-	        }
-	      }
-	    }
-	    return readers;
-	  }
-	  
-	  
+              reader.setDelDocIds();
+              readers.add(reader);
+            }
+          }
+          _memBVersion = memIndexB.getVersion();
+        }
 
-	@Override
+        if (memIndexA != null)                           // load memory index A
+        {
+          synchronized(memIndexA)
+          {
+            reader = memIndexA.openIndexReader();
+            if (reader != null)
+            {
+              int refCount = reader.getRefCount();
+              // If the ref count is zero, attempt to refresh the index and rerun the method
+              if(refCount <= 0 && count < MAX_RETRY)
+              {
+                log.warn("Ref count seems to be zero when getting an index reader. Trying to reopen the memory index reader!");
+                memIndexA.refresh(true);
+                return getIndexReaders0(count + 1);
+              }
+              reader = reader.copy();
+              reader.setDelDocIds();
+              readers.add(reader);
+            }
+          }
+          _memAVersion = memIndexA.getVersion();
+        }
+
+        // load disk index
+        {
+          reader = mem.get_diskIndexReader();
+          if (reader != null)
+          {
+            int refCount = reader.getRefCount();
+            // If the ref count is zero, attempt to refresh the index and rerun the method
+            if(refCount <= 0 && count < MAX_RETRY)
+            {
+              log.warn("Ref count seems to be zero when getting an index reader. Trying to reopen the disk index!");
+              refreshDiskReader();
+              return getIndexReaders0(count + 1);
+            }
+            reader = reader.copy();
+            reader.setDelDocIds();
+            readers.add(reader);
+          }
+
+          _diskVersion = getCurrentDiskVersion();
+        }
+      }
+    }
+    return readers;
+  }
+
+
+  private void copyReader(ArrayList<ZoieIndexReader<R>> readers, ZoieIndexReader<R> reader, RAMSearchIndex<R> index) throws IOException {
+    if (reader != null)
+    {
+      int refCount = reader.getRefCount();
+      if(refCount <= 0)
+      {
+        log.warn("Ref count seems to be zero. Reopening the index reader!");
+        index.refresh(true);
+      }
+      reader = reader.copy();
+      reader.setDelDocIds();
+      readers.add(reader);
+    }
+  }
+
+
+  @Override
 	public String getCurrentReaderVersion() {
 	  String version = _memAVersion;
 	  if (_versionComparator.compare(version, _memBVersion)<0){
@@ -302,16 +348,17 @@ public class SearchIndexManager<R extends IndexReader> implements IndexReaderFac
 
 	public void returnIndexReaders(List<ZoieIndexReader<R>> readers)
 	  {
-	    for(ZoieIndexReader<R> r : readers)
-	    {
-//	      try
-//	      {
-	        r.decZoieRef();//.decRef();
-//	      } catch (IOException e)
-//	      {
-//	        log.error("error when decRef on reader ", e);
-//	      }
-	    }
+      for(ZoieIndexReader<R> r : readers)
+      {
+	      try
+	      {
+          r.decZoieRef();//.decRef();
+	      }
+        catch (Exception e)
+	      {
+	        log.error("Error calling decZoieRef while returning the index readers", e);
+	      }
+      }
 	  }
 	  
 	  public synchronized void setDiskIndexerStatus(Status status)
@@ -402,15 +449,16 @@ public class SearchIndexManager<R extends IndexReader> implements IndexReaderFac
 	    }
 	    if (mem.get_diskIndexReader()!=null)
 	    {
-//	      try
-//	      {
-	        mem.get_diskIndexReader().decZoieRef();//.decRef();
-            _diskIndex.close();
-//          }
-//	      catch (IOException e)
-//          {
-//	        log.error("error closing remaining diskReader pooled in mem: " + e);
-//          }
+        try
+        {
+          mem.get_diskIndexReader().decZoieRef();
+        }
+        catch (Exception ex)
+        {
+          log.error("Error decrementing zoie ref while closing the search index manager!", ex);
+        }
+
+        _diskIndex.close();
 	    }
 	  }
 
@@ -486,10 +534,10 @@ public class SearchIndexManager<R extends IndexReader> implements IndexReaderFac
   {
     log.info("purging index ...");
     _diskIndex.clearDeletes();
-    _diskIndex.refresh(false);
+    _diskIndex.refresh(true);
     _diskIndex.closeIndexWriter();
     _dirMgr.purge();
-    _diskIndex.refresh(false);
+    _diskIndex.refresh(true);
     if (_mem.get_memIndexA()!=null){_mem.get_memIndexA().close();}
     if (_mem.get_memIndexB()!=null){_mem.get_memIndexB().close();}
     RAMSearchIndex<R> memIndexA = _ramIndexFactory.newInstance(_diskIndex.getVersion(), _indexReaderDecorator, this);
@@ -542,13 +590,14 @@ public class SearchIndexManager<R extends IndexReader> implements IndexReaderFac
       {
         if (oldDiskReader != null)
         {
-//          try
-//          {
+          try
+          {
             oldDiskReader.decZoieRef();
-//          } catch (IOException e)
-//          {
-//            log.error("swaping old and new disk reader failure: " + e);
-//          }
+          }
+          catch (Exception ex)
+          {
+            log.error("Error decrementing zoie ref while swapping the ram search index!", ex);
+          }
         }
         diskIndexReader.incZoieRef();
         _mem = mem;
